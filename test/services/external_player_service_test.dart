@@ -1,0 +1,246 @@
+import 'package:drift/native.dart';
+import 'package:plezy/media/ids.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:plezy/database/app_database.dart';
+import 'package:plezy/media/media_backend.dart';
+import 'package:plezy/media/media_item.dart';
+import 'package:plezy/media/media_part.dart';
+import 'package:plezy/media/media_part_timeline.dart';
+import 'package:plezy/media/media_kind.dart';
+import 'package:plezy/media/media_server_client.dart';
+import 'package:plezy/services/external_player_service.dart';
+import 'package:plezy/services/jellyfin_api_cache.dart';
+import 'package:plezy/services/multi_server_manager.dart';
+import 'package:plezy/services/offline_watch_sync_service.dart';
+import 'package:plezy/utils/active_client_scope.dart';
+import 'package:plezy/utils/watch_state_notifier.dart';
+import '../test_helpers/media_items.dart';
+import '../test_helpers/playback_report_fakes.dart';
+
+class _RecordingClient with PlaybackReportRecorder implements MediaServerClient, ScopedMediaServerClient {
+  _RecordingClient({this.backend = MediaBackend.plex, String? scopedServerId})
+    : scopedServerId =
+          scopedServerId ??
+          (backend == MediaBackend.plex
+              ? buildPlexProfileScopeId(serverId: ServerId('srv'), profileId: 'profile-a')
+              : 'srv/user-a');
+
+  bool failStart = false;
+  bool failStop = false;
+  final started = <({int positionMs, int? durationMs})>[];
+  final stopped = <({int positionMs, int? durationMs})>[];
+  final watched = <String>[];
+
+  @override
+  ServerId get serverId => ServerId('srv');
+
+  @override
+  final MediaBackend backend;
+  @override
+  final String scopedServerId;
+
+  @override
+  double get watchedThreshold => 0.9;
+
+  // Mirror the real clients: Jellyfin marks played from the stopped report, so
+  // the external-player completion path emits only the local watch event
+  // (#1287); Plex needs the explicit markWatched.
+  @override
+  bool get marksWatchedOnPlaybackStopped => backend == MediaBackend.jellyfin;
+
+  @override
+  Future<void> onPlaybackReport(PlaybackReportCall call) async {
+    final entry = (positionMs: call.position.inMilliseconds, durationMs: call.duration?.inMilliseconds);
+    switch (call.kind) {
+      case PlaybackReportKind.started:
+        started.add(entry);
+        if (failStart) throw StateError('start failed');
+      case PlaybackReportKind.progress:
+        throw UnimplementedError();
+      case PlaybackReportKind.stopped:
+        stopped.add(entry);
+        if (failStop) throw StateError('stop failed');
+    }
+  }
+
+  @override
+  Future<void> markWatched(MediaItem item) async {
+    watched.add(item.id);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+MediaItem _item({int? durationMs}) {
+  return testMediaItem(
+    id: 'item-1',
+    backend: MediaBackend.plex,
+    kind: MediaKind.movie,
+    serverId: 'srv',
+    durationMs: durationMs,
+  );
+}
+
+void main() {
+  test('Android external progress preserves null duration and still stops after start failure', () async {
+    final client = _RecordingClient()..failStart = true;
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: 5000,
+      durationMs: null,
+      metadata: _item(),
+      client: client,
+    );
+
+    expect(client.started, [(positionMs: 5000, durationMs: null)]);
+    expect(client.stopped, [(positionMs: 5000, durationMs: null)]);
+  });
+
+  test('Android external progress queues unknown-duration resume when no client is available', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    JellyfinApiCache.initialize(db);
+    final manager = MultiServerManager();
+    final service = OfflineWatchSyncService(database: db, serverManager: manager);
+    addTearDown(() async {
+      service.dispose();
+      manager.dispose();
+      await db.close();
+    });
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: 5000,
+      durationMs: null,
+      metadata: _item(),
+      client: null,
+      offlineWatchService: service,
+    );
+
+    final action = await db.getLatestWatchAction('srv:item-1');
+    expect(action, isNotNull);
+    expect(action!.viewOffset, 5000);
+    expect(action.duration, isNull);
+    expect(action.shouldMarkWatched, isFalse);
+  });
+
+  test('Android external progress emits the exact client cache scope', () async {
+    final scope = buildPlexProfileScopeId(serverId: ServerId('srv'), profileId: 'profile-a');
+    final client = _RecordingClient(scopedServerId: scope);
+    final events = <WatchStateEvent>[];
+    final subscription = WatchStateNotifier().stream
+        .where((event) => event.affectsItem('item-1'))
+        .where((event) => event.changeType == WatchStateChangeType.progressUpdate)
+        .listen(events.add);
+    addTearDown(subscription.cancel);
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: 5000,
+      durationMs: 100000,
+      metadata: _item(durationMs: 100000),
+      client: client,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(events, hasLength(1));
+    expect(events.single.cacheServerId, scope);
+  });
+
+  test('Android external progress ignores missing position without explicit completion', () async {
+    final client = _RecordingClient();
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: null,
+      durationMs: 100000,
+      playbackCompleted: false,
+      metadata: _item(durationMs: 100000),
+      client: client,
+    );
+
+    expect(client.started, isEmpty);
+    expect(client.stopped, isEmpty);
+  });
+
+  test('Android external progress reports full duration for explicit completion', () async {
+    final client = _RecordingClient();
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: null,
+      durationMs: 100000,
+      playbackCompleted: true,
+      metadata: _item(durationMs: 100000),
+      client: client,
+    );
+
+    expect(client.started, [(positionMs: 100000, durationMs: 100000)]);
+    expect(client.stopped, [(positionMs: 100000, durationMs: 100000)]);
+    expect(client.watched, ['item-1']);
+  });
+
+  test('Android external completion on Jellyfin marks watched via the stop report, not markWatched (#1287)', () async {
+    final client = _RecordingClient(backend: MediaBackend.jellyfin);
+
+    await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+      positionMs: null,
+      durationMs: 100000,
+      playbackCompleted: true,
+      metadata: _item(durationMs: 100000),
+      client: client,
+    );
+
+    // The stopped report at full duration marks it played server-side…
+    expect(client.stopped, [(positionMs: 100000, durationMs: 100000)]);
+    // …so the explicit markWatched is skipped — issuing it would double-scrobble
+    // through the Jellyfin Trakt plugin.
+    expect(client.watched, isEmpty);
+  });
+
+  group('a stacked item (50 + 40 minute files)', () {
+    const fileOneMs = 3000000;
+    const itemMs = 5400000;
+    MediaPartTimeline timeline({required int currentIndex}) => MediaPartTimeline.fromParts(const [
+      MediaPart(id: '11', durationMs: fileOneMs),
+      MediaPart(id: '12', durationMs: 2400000),
+    ], currentIndex: currentIndex)!;
+
+    test('playing out the first file leaves the item at the second, not watched', () async {
+      final client = _RecordingClient();
+
+      await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+        positionMs: null,
+        durationMs: fileOneMs,
+        playbackCompleted: true,
+        metadata: _item(durationMs: itemMs),
+        client: client,
+        partTimeline: timeline(currentIndex: 0),
+      );
+
+      expect(client.stopped, [(positionMs: fileOneMs, durationMs: itemMs)]);
+      expect(client.watched, isEmpty);
+    });
+
+    test('the second file reports on the item clock and finishing it finishes the item', () async {
+      final client = _RecordingClient();
+
+      await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+        positionMs: 600000,
+        durationMs: 2400000,
+        metadata: _item(durationMs: itemMs),
+        client: client,
+        partTimeline: timeline(currentIndex: 1),
+      );
+      expect(client.stopped.last, (positionMs: fileOneMs + 600000, durationMs: itemMs));
+      expect(client.watched, isEmpty);
+
+      await ExternalPlayerService.reportAndroidExternalProgressForTesting(
+        positionMs: null,
+        durationMs: 2400000,
+        playbackCompleted: true,
+        metadata: _item(durationMs: itemMs),
+        client: client,
+        partTimeline: timeline(currentIndex: 1),
+      );
+      expect(client.stopped.last, (positionMs: itemMs, durationMs: itemMs));
+      expect(client.watched, ['item-1']);
+    });
+  });
+}
