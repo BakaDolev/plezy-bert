@@ -14,7 +14,8 @@
 ;
 ; Compiled with ForkSilent defined (build-fork-installer.ps1 does both), it is
 ; the silent installer, made for unattended machines such as a test VM: no
-; pages or questions; the same build installed already exits at once; a newer
+; pages or questions (double-clicked, it starts itself again with /SILENT, so
+; only the progress bar shows); the same build installed already exits at once; a newer
 ; one is refused (exit code 10); a copy installed for all users is left alone
 ; (exit code 11: updating it needs an administrator); a running Plezy is closed
 ; and reopened, a closed one stays closed; the official Plezy is never touched;
@@ -60,8 +61,8 @@ WizardSmallImageFile=windows\installer\wizard-small-*.png
 ; Dynamic dark mode swaps in Inno's own small image unless told otherwise.
 WizardSmallImageFileDynamicDark=windows\installer\wizard-small-*.png
 #ifdef ForkSilent
-; Double-clicked, only the progress bar shows. Plezy is closed by the script
-; below, not by Setup's own question on the Preparing page.
+; Double-clicked, only the progress bar shows (RelaunchSilently). Plezy is
+; closed by the script below, not by Setup's own question on the Preparing page.
 DisableWelcomePage=yes
 DisableFinishedPage=yes
 CloseApplications=no
@@ -311,6 +312,46 @@ begin
   ExitProcess(Code);
 end;
 
+{ The switches a second run must not get: Setup's own for this run (the
+  loader's /SL5=, the elevation helper's /SPAWNWND= and /NOTIFYWND=, the
+  debugger's /DEBUGWND=) and /LOG, whose file this run holds open (the second
+  run would stop on it; install-status.json names that run's log). }
+function StaysWithThisRun(const Param: String): Boolean;
+var
+  P: String;
+begin
+  P := Uppercase(Param);
+  Result := (Pos('/SL5=', P) = 1) or (Pos('/SPAWNWND=', P) = 1) or (Pos('/NOTIFYWND=', P) = 1) or
+    (Pos('/DEBUGWND=', P) = 1) or (P = '/LOG') or (Pos('/LOG=', P) = 1);
+end;
+
+{ Double-clicked, Setup would show its Ready page: nothing skips that page when
+  it would be the first one shown. So a run without /SILENT or /VERYSILENT
+  starts itself again with /SILENT (only the progress bar shows), passing its
+  other switches on, and leaves with that run's exit code. Setup can't start
+  its own exe (Windows answers "access denied"), so cmd starts it. If that
+  fails (exit code 1: cmd couldn't start it, or Setup couldn't even begin),
+  the wizard carries on, with an Install button. }
+procedure RelaunchSilently;
+var
+  Params: String;
+  I, Code: Integer;
+begin
+  Params := '/SILENT /NORESTART';
+  for I := 1 to ParamCount do
+    if not StaysWithThisRun(ParamStr(I)) then
+      Params := Params + ' "' + ParamStr(I) + '"';
+  Log('Started without /SILENT; starting again: ' + Params);
+  if not Exec(ExpandConstant('{cmd}'), '/s /c ""' + ExpandConstant('{srcexe}') + '" ' + Params + '"', '',
+     SW_HIDE, ewWaitUntilTerminated, Code) or (Code = 1) then
+  begin
+    Log(Format('Could not start Setup again (%d); showing the wizard', [Code]));
+    Exit;
+  end;
+  DelTree(ExpandConstant('{tmp}'), True, True, True);
+  ExitProcess(Code);
+end;
+
 { A copy installed for all users can only be updated as an administrator,
   and upstream's InitializeSetup would raise the administrator prompt for it:
   on an unattended machine nobody answers it, so the silent installer stops
@@ -397,13 +438,11 @@ begin
     Result := 'Plezy could not be closed, so it was not updated.';
 end;
 
-{ No page asks anything: the tasks page takes its defaults (no desktop icon),
-  and the Ready page, which DisableReadyPage leaves in when it would be the
-  first page shown, goes too. }
+{ No page asks anything: the tasks page takes its defaults (no desktop icon). }
 <event('ShouldSkipPage')>
 function ForkShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = wpSelectTasks) or (PageID = wpReady);
+  Result := PageID = wpSelectTasks;
 end;
 
 <event('CurStepChanged')>
@@ -442,6 +481,10 @@ var
   OldBuild: Integer;
 begin
   Result := True;
+#ifdef ForkSilent
+  if not WizardSilent then
+    RelaunchSilently;
+#endif
   ApplyUpdateChecksParam;
 #ifdef ForkSilent
   SilentStart;
@@ -560,11 +603,12 @@ begin
 end;
 
 { With the Ready page hidden, the options page is the last one before
-  installing, so its button has to say so (Inno leaves that to the script). }
+  installing, so its button has to say so (Inno leaves that to the script). The
+  silent installer shows the Ready page only when it couldn't start itself again. }
 <event('CurPageChanged')>
 procedure ForkCurPageChanged(CurPageID: Integer);
 begin
-  if CurPageID = wpSelectTasks then
+  if (CurPageID = wpSelectTasks) or (CurPageID = wpReady) then
     WizardForm.NextButton.Caption := SetupMessage(msgButtonInstall)
   else if CurPageID = wpFinished then
   begin

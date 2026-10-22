@@ -59,7 +59,7 @@ Each release carries these files (`<version>` is this fork's own version, for ex
 | `PlezyFork-<version>-phone-arm64-v8a.apk` | Android phones. |
 | `PlezyFork-<version>-tv-armeabi-v7a.apk` | Android TV and Google TV devices. |
 | `appcast.xml`, `android.json` | What the app reads to find its own updates. |
-| `PlezyFork-<version>-SHA256SUMS.txt` | The SHA-256 of every file above, in `sha256sum` format (`sha256sum -c --ignore-missing` checks a download). |
+| `checksums-<version>.txt` | The SHA-256 of every file above, in `sha256sum` format (`sha256sum -c --ignore-missing` checks a download). In 0.0.1 it is `PlezyFork-0.0.1-SHA256SUMS.txt`. |
 
 Tags are `v<x.y.z>`. A version whose last number is above 0 (`0.0.2`) is a beta and is marked as a pre-release;
 `x.y.0` is a release. Betas and releases are builds of the same app and install over each other. To follow the betas,
@@ -72,7 +72,7 @@ PlezyFork-<version>-silent-setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /U
 ```
 
 - It installs for the current user only, never asks for administrator rights, shows no page and asks nothing, and
-  never touches the official Plezy.
+  never touches the official Plezy. Double-clicked, it shows only its progress bar.
 - A running Plezy Fork is asked to close (and ended if it is still open 10 seconds later), then started again once
   the update is in. One that was not running stays closed. `/NORUN=1` never starts it.
 - `/UPDATECHECKS=off` stops the app from looking for updates on its own, for this user; the About screen's button
