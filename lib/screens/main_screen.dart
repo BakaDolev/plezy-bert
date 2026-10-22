@@ -18,13 +18,14 @@ import 'package:window_manager/window_manager.dart';
 import '../i18n/strings.g.dart';
 import '../services/app_exit_service.dart';
 import '../services/tvos_system_navigation_service.dart';
-import '../services/update_service.dart';
+import '../services/fork_update/fork_updater.dart';
+import '../services/fork_update/playback_probe.dart';
+import '../services/fork_update/update_gate.dart';
 import '../utils/app_logger.dart';
 import '../widgets/auth_error_banner.dart';
 import '../widgets/app_icon.dart';
 import '../utils/platform_detector.dart';
 import '../utils/snackbar_helper.dart';
-import '../utils/update_dialog.dart';
 import '../utils/video_player_navigation.dart';
 import '../mixins/mounted_set_state_mixin.dart';
 import '../mixins/refreshable.dart';
@@ -437,6 +438,11 @@ class _MainScreenState extends State<MainScreen>
   /// was gone long enough that the content tabs should refetch (#2043).
   final _contentRefreshResumeGate = ContentRefreshResumeGate();
 
+  /// Fork: back after an hour away counts as opening Plezy fresh, when the
+  /// updater may appear.
+  final _updateResumeGate = ContentRefreshResumeGate(staleAfter: kUpdateAwayThreshold);
+  Timer? _forkUpdateTimer;
+
   late List<Widget> _screens;
 
   /// Tabs selected at least once in the current MainScreen lifetime. Unvisited
@@ -628,7 +634,8 @@ class _MainScreenState extends State<MainScreen>
       _updateTvosMenuPassthrough();
 
       // Check for updates on startup
-      unawaited(_checkForUpdatesOnStartup());
+      UpdateGate.instance.noteMainScreenStart();
+      _scheduleForkUpdateCheck();
     });
   }
 
@@ -835,38 +842,29 @@ class _MainScreenState extends State<MainScreen>
     if (!mounted) return;
     _isShowingProfileSelection = false;
     _updateTvosMenuPassthrough();
+    _scheduleForkUpdateCheck();
   }
 
-  Future<void> _checkForUpdatesOnStartup() async {
-    if (!mounted) return;
-
-    final settingsService = await SettingsService.getInstance();
-    if (!settingsService.read(SettingsService.autoCheckUpdatesOnStartup)) return;
-
-    // Native updater (Sparkle/WinSparkle) handles everything — skip Flutter dialog
-    if (UpdateService.useNativeUpdater) {
-      await UpdateService.checkForUpdatesNative(inBackground: true);
-      return;
-    }
-
-    try {
-      final updateInfo = await UpdateService.checkForUpdatesOnStartup();
-
-      if (updateInfo != null && updateInfo['hasUpdate'] == true && mounted) {
-        await _showUpdateDialog(updateInfo);
-      }
-    } catch (e) {
-      appLogger.e('Error checking for updates', error: e);
-    }
+  /// Fork: the updater may appear on its own only on a fresh open (see
+  /// [UpdateGate]), once things settle, never over the profile picker or
+  /// playback. An open the picker held up waits for it to close (or for the
+  /// next main screen, when another profile was picked).
+  void _scheduleForkUpdateCheck() {
+    _forkUpdateTimer?.cancel();
+    _forkUpdateTimer = Timer(kUpdateSettleDelay, () {
+      if (!mounted || _isShowingProfileSelection) return;
+      if (!UpdateGate.instance.takeFreshOpen()) return;
+      unawaited(
+        ForkUpdater.instance
+            .check(
+              manual: false,
+              isPlaybackActive: () => !mounted || isPlaybackActiveIn(context),
+              dialogContext: () => mounted ? context : null,
+            )
+            .then((outcome) => appLogger.i('Fork update check on open: ${outcome.name}')),
+      );
+    });
   }
-
-  Future<void> _showUpdateDialog(Map<String, dynamic> updateInfo) => showUpdateAvailableDialog(
-    context,
-    updateInfo,
-    title: t.update.available,
-    dismissLabel: t.common.later,
-    showSkipVersion: true,
-  );
 
   /// Set up the Watch Together navigation callback for guests
   void _setupWatchTogetherCallback() {
@@ -1174,6 +1172,7 @@ class _MainScreenState extends State<MainScreen>
 
   @override
   void dispose() {
+    _forkUpdateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _profileRouteObserver?.unsubscribe(this);
     if (PlatformDetector.isDesktopOS()) {
@@ -1261,6 +1260,10 @@ class _MainScreenState extends State<MainScreen>
     // Always consume: the gates latch backgrounding on every lifecycle event.
     final resumedFromBackground = _profileSelectionResumeGate.consumePromptOn(state);
     final refreshStaleContent = _contentRefreshResumeGate.consumeRefreshOn(state);
+    if (_updateResumeGate.consumeRefreshOn(state)) {
+      UpdateGate.instance.noteBackAfterLongAway();
+      _scheduleForkUpdateCheck();
+    }
     // Seerr authority is independent of media-server reachability and stale
     // content. A grant must recover hidden Request actions on any real resume.
     if (resumedFromBackground && mounted) {

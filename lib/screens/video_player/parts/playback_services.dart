@@ -540,6 +540,7 @@ extension _VideoPlayerPlaybackServiceMethods on VideoPlayerScreenState {
         onPausedKeepalive: mediaClient is PlexClient && effectivePlayMethod == 'Transcode'
             ? () => mediaClient.pingTranscodeSession(_playbackTranscodeSessionId)
             : null,
+        guardAgainstNewerProgress: true,
         onScrobbled: () async {
           // Other episodes of a Plex multi-episode file share this item's
           // part — watching the file watched them too (#1500). Reusing
@@ -802,6 +803,20 @@ extension _VideoPlayerPlaybackServiceMethods on VideoPlayerScreenState {
       }
       unawaited(_wakelockController.setEnabled(false));
       return;
+    }
+
+    // Another device watched further while this one sat paused: hold the play
+    // and ask which spot to go on from. In Watch Together the room decides.
+    final newerProgress = _progressTracker?.newerProgress;
+    if (isPlaying && newerProgress != null && newerProgress.isOvertaken) {
+      if (_watchTogetherProvider?.isInSession ?? false) {
+        newerProgress.release();
+      } else {
+        final currentPlayer = player;
+        if (currentPlayer != null) unawaited(_pauseWithPlaybackIntent(currentPlayer));
+        unawaited(_askAboutNewerProgress());
+        return;
+      }
     }
 
     // Hold the screen awake only while media advances. Parked at the end (the

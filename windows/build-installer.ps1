@@ -10,7 +10,31 @@ param(
     [string]$Arm64BuildDir,
     # Write setup.iss and stop. Lets the generated script be inspected or
     # checked without 7-Zip, Inno Setup or a populated Flutter build output.
-    [switch]$EmitScriptOnly
+    [switch]$EmitScriptOnly,
+    # Installer identity. The defaults are upstream's; a fork passes its own so
+    # it installs beside an official copy instead of over it.
+    # Uninstall registry keys are named "{AppId}_is1", so the installer and the
+    # elevation code below have to agree on this GUID.
+    [string]$AppGuid = '4213385e-f7be-4f2b-95f9-54082a28bb8f',
+    [string]$AppTitle = 'Plezy',
+    [string]$InstallDirName = 'Plezy',
+    [string]$GroupName = 'Plezy',
+    [string]$Publisher = 'edde746',
+    [string]$ReleasesUrl = 'https://github.com/edde746/plezy/releases/latest',
+    [string]$WizardStyle = 'modern',
+    # Added after "commandline" in the install-mode overrides, e.g. ' dialog'
+    # for an installer that asks "all users / me only".
+    [string]$ExtraPrivilegesOverrides = '',
+    # Extra Inno Setup script #included at the end, for a fork's own additions.
+    [string]$IncludeScript,
+    # Appended to the launch entry's Check, for a fork's own condition
+    # (e.g. ' and ForkLaunchAfterInstall', a function in IncludeScript).
+    [string]$LaunchCheck = '',
+    # More installers compiled from the same script while the files are staged:
+    # output base name -> extra ISCC arguments (e.g. /D defines).
+    [hashtable]$ExtraInstallers = @{},
+    [string]$InnoSetupPath = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+    [string]$SevenZipPath = '7z'
 )
 
 function New-InnoSetupScript {
@@ -19,10 +43,6 @@ function New-InnoSetupScript {
         [Parameter(Mandatory)][bool]$HasX64,
         [Parameter(Mandatory)][bool]$HasArm64
     )
-
-    # Uninstall registry keys are named "{AppId}_is1", so the installer and the
-    # elevation code below have to agree on this GUID.
-    $AppGuid = '4213385e-f7be-4f2b-95f9-54082a28bb8f'
 
     if ($HasX64 -and $HasArm64) {
         $ArchAllowed = 'x64compatible arm64'
@@ -38,29 +58,32 @@ Source: "staging\arm64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
         $FilesSection = 'Source: "staging\arm64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs'
     }
 
+    $Include = if ($IncludeScript) { "#include `"$IncludeScript`"" } else { '' }
+
     return @"
 #define Name "Plezy"
+#define Title "$AppTitle"
 #define Version "$Version"
-#define Publisher "edde746"
+#define Publisher "$Publisher"
 #define ExeName "plezy.exe"
 
 [Setup]
 AppId={{$AppGuid}
-AppName={#Name}
+AppName={#Title}
 AppVersion={#Version}
 AppPublisher={#Publisher}
-DefaultDirName={autopf}\{#Name}
-DefaultGroupName={#Name}
+DefaultDirName={autopf}\$InstallDirName
+DefaultGroupName=$GroupName
 AllowNoIcons=yes
 OutputDir=.
 OutputBaseFilename=plezy-windows-installer
 Compression=lzma
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=$WizardStyle
 PrivilegesRequired=lowest
 ; Needed for /ALLUSERS to take effect, which is how the elevated instance
 ; started by InitializeSetup below reaches an existing machine-wide install.
-PrivilegesRequiredOverridesAllowed=commandline
+PrivilegesRequiredOverridesAllowed=commandline$ExtraPrivilegesOverrides
 ArchitecturesAllowed=$ArchAllowed
 ArchitecturesInstallIn64BitMode=$ArchAllowed
 
@@ -68,7 +91,7 @@ ArchitecturesInstallIn64BitMode=$ArchAllowed
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [CustomMessages]
-ElevationRequired=Plezy is installed in %1, which requires administrator privileges to update.%n%nRe-run this installer using "Run as administrator", or download the latest installer from https://github.com/edde746/plezy/releases/latest
+ElevationRequired={#Title} is installed in %1, which requires administrator privileges to update.%n%nRe-run this installer using "Run as administrator", or download the latest installer from $ReleasesUrl
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -78,11 +101,11 @@ $FilesSection
 
 [Icons]
 Name: "{group}\{#Name}"; Filename: "{app}\{#ExeName}"
-Name: "{group}\{cm:UninstallProgram,{#Name}}"; Filename: "{uninstallexe}"
+Name: "{group}\{cm:UninstallProgram,{#Title}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#Name}"; Filename: "{app}\{#ExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#ExeName}"; Description: "{cm:LaunchProgram,{#Name}}"; Flags: nowait postinstall; Check: not IsNoRun
+Filename: "{app}\{#ExeName}"; Description: "{cm:LaunchProgram,{#Name}}"; Flags: nowait postinstall; Check: not IsNoRun$LaunchCheck
 
 [Code]
 const
@@ -223,6 +246,7 @@ begin
     end;
   end;
 end;
+$Include
 "@
 }
 
@@ -267,7 +291,7 @@ if ($EmitScriptOnly) {
 }
 
 Write-Host "`nChecking for 7-Zip..." -ForegroundColor Cyan
-if (-not (Get-Command 7z -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command $SevenZipPath -ErrorAction SilentlyContinue)) {
     Write-Host "7-Zip not found in PATH. Installing via Chocolatey..." -ForegroundColor Yellow
 
     if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
@@ -277,8 +301,9 @@ if (-not (Get-Command 7z -ErrorAction SilentlyContinue)) {
 
     choco install 7zip -y
     refreshenv
+    $SevenZipPath = '7z'
 
-    if (-not (Get-Command 7z -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command $SevenZipPath -ErrorAction SilentlyContinue)) {
         Write-Error "Failed to install 7-Zip"
         exit 1
     }
@@ -290,7 +315,7 @@ if ($HasX64) {
     Push-Location $X64BuildDir
     try {
         if (Test-Path $X64Portable) { Remove-Item $X64Portable -Force }
-        7z a -mx=9 $X64Portable *
+        & $SevenZipPath a -mx=9 $X64Portable *
         Write-Host "Created: $X64Portable" -ForegroundColor Green
     } finally {
         Pop-Location
@@ -303,7 +328,7 @@ if ($HasArm64) {
     Push-Location $Arm64BuildDir
     try {
         if (Test-Path $Arm64Portable) { Remove-Item $Arm64Portable -Force }
-        7z a -mx=9 $Arm64Portable *
+        & $SevenZipPath a -mx=9 $Arm64Portable *
         Write-Host "Created: $Arm64Portable" -ForegroundColor Green
     } finally {
         Pop-Location
@@ -331,7 +356,6 @@ New-InnoSetupScript -Version $Version -HasX64 ([bool]$HasX64) -HasArm64 ([bool]$
 Write-Host "Created: $SetupScript" -ForegroundColor Green
 
 Write-Host "`nChecking for Inno Setup..." -ForegroundColor Cyan
-$InnoSetupPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
 if (-not (Test-Path $InnoSetupPath)) {
     Write-Host "Inno Setup not found. Installing via Chocolatey..." -ForegroundColor Yellow
@@ -357,9 +381,21 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+foreach ($Extra in $ExtraInstallers.GetEnumerator()) {
+    Write-Host "`nBuilding $($Extra.Key) with Inno Setup..." -ForegroundColor Cyan
+    & $InnoSetupPath "/F$($Extra.Key)" @($Extra.Value) $SetupScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Inno Setup compilation failed ($($Extra.Key))"
+        exit 1
+    }
+}
+
 Remove-Item $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Host "`nBuild complete!" -ForegroundColor Green
 if ($HasX64)   { Write-Host "Portable (x64):   $X64Portable" -ForegroundColor White }
 if ($HasArm64) { Write-Host "Portable (arm64): $Arm64Portable" -ForegroundColor White }
 Write-Host "Installer:        $(Join-Path $ResolvedOutput 'plezy-windows-installer.exe')" -ForegroundColor White
+foreach ($Name in $ExtraInstallers.Keys) {
+    Write-Host "Installer:        $(Join-Path $ResolvedOutput "$Name.exe")" -ForegroundColor White
+}

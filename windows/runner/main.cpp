@@ -6,8 +6,25 @@
 #include "mpv/display_mode_manager.h"
 #include "utils.h"
 
+namespace {
+
+// Fork: WinSparkle's own scheduler stays off. The official Plezy shares this
+// key (it is built from CompanyName + ProductName) and leaves CheckForUpdates
+// at "1", which makes win_sparkle_init() check by itself every day, over
+// whatever is playing. Plezy decides when to look for updates, so pin it to
+// "0" before anything can start WinSparkle. WinSparkle only reads REG_SZ.
+void KeepWinSparkleSchedulerOff() {
+  const wchar_t kOff[] = L"0";
+  ::RegSetKeyValueW(HKEY_CURRENT_USER, L"Software\\com.edde746\\Plezy\\WinSparkle", L"CheckForUpdates", REG_SZ, kOff,
+                    sizeof(kOff));
+}
+
+}  // namespace
+
 int APIENTRY
 wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev, _In_ wchar_t* command_line, _In_ int show_command) {
+  KeepWinSparkleSchedulerOff();
+
   // Plezy requires the bundled flutter-plezy engine, which presents the Flutter
   // UI on a topmost DirectComposition visual when FLUTTER_WINDOWS_DCOMP is set.
   // The mpv video window is then a plain child composed beneath the UI in the

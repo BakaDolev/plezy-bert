@@ -2,31 +2,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:plezy/fork_info.dart';
 
 void main() {
-  group('formatForkDate', () {
-    test('formats an ISO date as "Mon D, YYYY"', () {
-      expect(formatForkDate('2026-08-20'), 'Aug 20, 2026');
-      expect(formatForkDate('2026-01-05'), 'Jan 5, 2026');
-      expect(formatForkDate('2026-12-31'), 'Dec 31, 2026');
-    });
-
-    test('returns the input unchanged when it is not a valid ISO date', () {
-      expect(formatForkDate('not-a-date'), 'not-a-date');
-      expect(formatForkDate('2026-13-01'), '2026-13-01'); // month out of range
-      expect(formatForkDate('2026-08'), '2026-08');
-    });
+  test('forkMarkerLabel reads "<name> · based on Plezy <upstream>"', () {
+    expect(forkMarkerLabel(), '$kForkName · based on Plezy $kForkUpstreamBase');
   });
 
-  test('forkMarkerLabel reads "<name> · updated <date>"', () {
-    expect(forkMarkerLabel(), '$kForkName · updated ${formatForkDate(kForkUpdated)}');
+  group('forkVersionLabel', () {
+    test('a version whose last number is above 0 is a beta', () {
+      expect(forkVersionLabel('0.0.1'), '0.0.1 (beta)');
+      expect(forkVersionLabel('1.1.3'), '1.1.3 (beta)');
+    });
+
+    test('a release (last number 0) has no label', () {
+      expect(forkVersionLabel('1.0.0'), '1.0.0');
+      expect(forkVersionLabel('2.4.0'), '2.4.0');
+    });
+
+    test('anything that is not x.y.z is shown as it is', () {
+      expect(forkVersionLabel(' 2.23.0+179 '), '2.23.0+179');
+      expect(forkVersionLabel(''), '');
+    });
   });
 
   group('forkBuildFooter', () {
-    test('names the upstream base', () {
-      expect(forkBuildFooter(), contains('on Plezy $kForkUpstreamBase'));
+    test('names the upstream base and never the commit', () {
+      expect(forkBuildFooter(version: '0.0.2'), 'Plezy Fork 0.0.2 (beta) · on Plezy $kForkUpstreamBase');
+      expect(forkBuildFooter(version: '1.0.0'), 'Plezy Fork 1.0.0 · on Plezy $kForkUpstreamBase');
     });
 
-    test('drops the build id when GIT_COMMIT is undefined (as in tests)', () {
-      // No --dart-define in `flutter test`, so kForkGitCommit is empty.
+    test('a local build without a version names only the upstream base (as in tests)', () {
+      // No --dart-define in `flutter test`, so kForkVersion is empty.
       expect(forkBuildFooter(), 'on Plezy $kForkUpstreamBase');
     });
   });

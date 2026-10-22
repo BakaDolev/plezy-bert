@@ -128,6 +128,7 @@ import 'video_player/tv_background_suspend_policy.dart';
 import 'video_player/tv_background_suspend_state.dart';
 import 'video_player/visual_effects_controller.dart';
 import 'video_player/widgets/player_prompt_overlays.dart';
+import '../widgets/newer_progress_dialog.dart';
 import '../widgets/overlay_sheet.dart';
 import '../widgets/video_controls/player_chrome_controller.dart';
 import '../widgets/video_controls/video_controls.dart';
@@ -871,6 +872,12 @@ class VideoPlayerScreenState extends State<VideoPlayerScreen>
   TrackManager? _trackManager;
   StreamSubscription<void>? _sleepTimerSubscription;
   bool _isHandlingBack = false;
+
+  /// The "watched further on another device" question is up.
+  bool _askingAboutNewerProgress = false;
+
+  /// Closes a player left paused in the background ([_armPausedAwayClose]).
+  Timer? _pausedAwayCloseTimer;
 
   /// Cancel scope for the screen's player-driven stream subscriptions — the
   /// single authority consumed by [_wirePlayerStreams] (re-wire:
@@ -1689,6 +1696,7 @@ class VideoPlayerScreenState extends State<VideoPlayerScreen>
         // Synchronously, before the queued transition: a pending suspend must
         // not fire between this event and _handleAppResumed running.
         _cancelTvBackgroundPlayerSuspendTimer();
+        _pausedAwayCloseTimer?.cancel();
         _recordLifecycleState('resumed');
         _enqueueLifecycleTransition('resumed', _handleAppResumed);
         break;
@@ -2582,6 +2590,7 @@ class VideoPlayerScreenState extends State<VideoPlayerScreen>
     _tvSuspend.dispose();
 
     _stillWatchingTimer?.cancel();
+    _pausedAwayCloseTimer?.cancel();
     _stillWatchingCountdown.dispose();
 
     _liveSeek.dispose();

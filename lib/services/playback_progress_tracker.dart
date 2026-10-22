@@ -9,6 +9,7 @@ import '../media/media_item.dart';
 import '../media/media_server_client.dart';
 import '../media/media_source_info.dart';
 import '../media/watch_progress.dart';
+import 'newer_progress_guard.dart';
 import 'offline_watch_sync_service.dart';
 import 'playback_report_session.dart';
 import 'settings_service.dart';
@@ -100,6 +101,12 @@ class PlaybackProgressTracker {
   /// reads as off while the viewer watches with subtitles on; reporting that
   /// as `-1` would make Jellyfin remember "off" for the item.
   final int? Function()? burnedSubtitleStreamIndex;
+
+  /// While paused, watch for another device moving the item's resume point
+  /// past this one, and stop writing this device's older spot back once it
+  /// has (see [NewerProgressGuard]). Null unless the caller opted in and an
+  /// online client reports.
+  late final NewerProgressGuard? newerProgress;
 
   /// Timer for periodic progress updates
   Timer? _progressTimer;
@@ -229,6 +236,7 @@ class PlaybackProgressTracker {
     this.subtitleOffIsDeliberate,
     this.burnedSubtitleStreamIndex,
     this.updateInterval = const Duration(seconds: 10),
+    bool guardAgainstNewerProgress = false,
   }) : assert(!isOffline || offlineWatchService != null, 'offlineWatchService is required when isOffline is true'),
        assert(isOffline || client != null, 'client is required when isOffline is false') {
     final reportingClient = client;
@@ -241,6 +249,14 @@ class PlaybackProgressTracker {
             playMethod: playMethod,
             onDelivered: _onReportDelivered,
           );
+    newerProgress = guardAgainstNewerProgress && _reportSession != null
+        ? NewerProgressGuard(
+            readResumePoint: () async {
+              final offsetMs = (await reportingClient!.fetchItem(metadata.id))?.viewOffsetMs;
+              return offsetMs == null ? null : Duration(milliseconds: offsetMs);
+            },
+          )
+        : null;
   }
 
   /// Starts the periodic report timer and sends the initial report.
@@ -287,12 +303,21 @@ class PlaybackProgressTracker {
         // session and its transcoder from being reaped during a long
         // pause (#1520). Not after the server terminated the session:
         // pinging the reaped transcoder would only produce doomed requests.
-        _sendProgress('paused');
+        _sendPausedProgress();
         if (!_serverTerminatedSession) _sendPausedKeepalive();
       }
     });
 
     appLogger.d('Started progress tracking (interval: ${updateInterval.inSeconds}s, offline: $isOffline)');
+  }
+
+  /// The paused heartbeat, held once another device has moved past this one
+  /// (the transcode keepalive still goes out, so the stream survives until
+  /// the viewer decides).
+  Future<void> _sendPausedProgress() async {
+    final guard = newerProgress;
+    if (guard != null && !await guard.mayReportPaused()) return;
+    await _sendProgress('paused');
   }
 
   /// One paused keepalive at a time. Reports already go one at a time through
@@ -426,6 +451,12 @@ class PlaybackProgressTracker {
           resumeAfterStoppedReport();
         }
       }
+      // Another device moved past this one: nothing this device says may drag
+      // the resume point back. Only its closing report goes out, at the newer
+      // spot (below), until the viewer chooses to play on here.
+      final guard = newerProgress;
+      final overtaken = guard?.isOvertaken ?? false;
+      if (overtaken && state != 'stopped') return;
       final canReport = canReportPlayback?.call() ?? true;
       final hasRenderedOutput = hasRenderedPlayback?.call() ?? canReport;
       if (state != 'stopped' && !canReport) return;
@@ -434,7 +465,10 @@ class PlaybackProgressTracker {
       final positionSource = isSuppressedStop
           ? _lastReportablePosition ?? Duration(milliseconds: metadata.viewOffsetMs ?? 0)
           : positionOverride ?? player.state.position;
-      final position = _clampPosition(positionSource, duration);
+      // Looked up only after the player state above is read: a caller may
+      // stop the player as soon as this report starts.
+      final overtakenSpot = overtaken ? await guard!.closingSpot() : null;
+      final position = _clampPosition(overtakenSpot ?? positionSource, duration);
       if (canReport && hasRenderedOutput) _lastReportablePosition = position;
       final canCommitStoppedProgress = hasRenderedOutput && (!isSuppressedStop || _lastReportablePosition != null);
       attemptedPosition = position;
@@ -456,7 +490,13 @@ class PlaybackProgressTracker {
         // Stopped must complete before disposal. When reporting was disabled
         // by a fatal error, use the last position captured while output was
         // healthy rather than the still-advancing native media clock.
-        final accepted = await _sendOnlineProgress(state, position, duration, allowScrobble: canCommitStoppedProgress);
+        // A close at another device's spot leaves that watch to the other device.
+        final accepted = await _sendOnlineProgress(
+          state,
+          position,
+          duration,
+          allowScrobble: canCommitStoppedProgress && overtakenSpot == null,
+        );
         // The explicit mark is resolved at session end, so it has to ride the
         // terminal report's future — callers that await the stop before tearing
         // the player down would otherwise drop it.
@@ -607,6 +647,7 @@ class PlaybackProgressTracker {
   /// whose every report sits above the threshold, or one resuming past it, is
   /// never marked server-side.
   void _onReportDelivered(PlaybackReportSnapshot snapshot) {
+    newerProgress?.noteReported(snapshot.position);
     final c = client;
     // The same backend as the client's, but read from the item so the
     // classification matches the pattern already used for track selection
@@ -880,5 +921,6 @@ class PlaybackProgressTracker {
 
   void dispose() {
     stopTracking();
+    newerProgress?.dispose();
   }
 }

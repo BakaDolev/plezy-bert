@@ -3,6 +3,28 @@ part of '../../video_player_screen.dart';
 bool shouldPauseVideoForBackground({required bool isHandheld, required bool isTv, required bool isAutomotive}) =>
     isHandheld || isTv || isAutomotive;
 
+/// How long a paused player on a phone or TV may sit in the background
+/// (screensaver included) before it closes.
+const Duration pausedAwayCloseAfter = Duration(minutes: 30);
+
+enum PausedAwayStep { close, lookAgainLater, nothing }
+
+/// What a player does when [pausedAwayCloseAfter] in the background is up:
+/// back in front, nothing; still in use (background audio, picture-in-picture,
+/// Watch Together), look again later; otherwise close.
+PausedAwayStep pausedAwayStep({
+  required AppLifecycleState? lifecycleState,
+  required bool playing,
+  required bool pip,
+  required bool watchTogether,
+}) {
+  if (lifecycleState == AppLifecycleState.resumed || lifecycleState == AppLifecycleState.inactive) {
+    return PausedAwayStep.nothing;
+  }
+  if (playing || pip || watchTogether) return PausedAwayStep.lookAgainLater;
+  return PausedAwayStep.close;
+}
+
 /// How long the phone must stay backgrounded (screen-off audio) before the
 /// next item is queued to load as a low-bitrate transcode. The delay keeps a
 /// quick app-switch from changing quality; genuine falling-asleep listening
@@ -351,6 +373,7 @@ extension _VideoPlayerLifecycleMethods on VideoPlayerScreenState {
     if (!mounted || _shuttingDown || currentPlayer != player) return;
 
     _suspendLiveTimelineForBackground();
+    _armPausedAwayClose();
 
     if (playInBackground) {
       // Keep audio playing in the background. The mpv core is already armed to
@@ -380,6 +403,36 @@ extension _VideoPlayerLifecycleMethods on VideoPlayerScreenState {
     _hiddenForBackground = true;
     await currentPlayer.setVisible(false, restoreOnWindowVisible: Platform.isMacOS);
     _recordLifecycleState('hidden', action: 'render_hidden');
+  }
+
+  /// A phone or TV player left paused in the background (a TV's screensaver
+  /// counts) for [pausedAwayCloseAfter] closes, ending its session and its
+  /// paused heartbeats; reopening the item resumes from the server's spot,
+  /// wherever the viewer got to meanwhile. A TV's player may already be
+  /// released by the background suspend; this then leaves the player screen
+  /// too. Still playing (background audio), in picture-in-picture or in Watch
+  /// Together, it looks again later. Desktop players stay open.
+  void _armPausedAwayClose() {
+    _pausedAwayCloseTimer?.cancel();
+    if (widget.isLive || !(Platform.isAndroid || Platform.isIOS)) return;
+    _pausedAwayCloseTimer = Timer(pausedAwayCloseAfter, () {
+      final currentPlayer = player;
+      if (!mounted || _shuttingDown || currentPlayer == null) return;
+      switch (pausedAwayStep(
+        lifecycleState: WidgetsBinding.instance.lifecycleState,
+        playing: currentPlayer.state.isActive,
+        pip: PipService().isPipActive.value,
+        watchTogether: _watchTogetherProvider?.isInSession ?? false,
+      )) {
+        case PausedAwayStep.nothing:
+          return;
+        case PausedAwayStep.lookAgainLater:
+          _armPausedAwayClose();
+        case PausedAwayStep.close:
+          _recordLifecycleState('hidden', action: 'paused_away_close');
+          unawaited(_exitPlayerRoute(navigateHome: false));
+      }
+    });
   }
 
   Future<void> _handleAppResumed() async {
@@ -636,6 +689,12 @@ extension _VideoPlayerLifecycleMethods on VideoPlayerScreenState {
       reason: 'TV background suspend restore',
     );
     if (outcome == MediaReloadOutcome.opened) {
+      // The suspend closed the session at this spot; another device may have
+      // played on since. If so, the play that follows asks where to go on from.
+      final suspendPosition = restore.position;
+      if (suspendPosition != null) {
+        await _progressTracker?.newerProgress?.recheckAfterClose(suspendPosition);
+      }
       if (playNextCountdown != null) await _restorePlayNextPrompt(countdown: playNextCountdown);
     } else if (outcome == MediaReloadOutcome.rejected) {
       appLogger.w('TV background suspend restore: in-place reload rejected');

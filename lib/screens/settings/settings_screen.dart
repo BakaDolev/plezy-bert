@@ -33,6 +33,7 @@ import '../../services/background_work_diagnostics_service.dart';
 import '../../services/settings_service.dart' as settings;
 import '../../services/settings_mutation_service.dart';
 import '../../widgets/background_download_warning_banner.dart';
+import '../../services/fork_update/fork_updater.dart';
 import '../../services/update_service.dart';
 import '../../utils/dialogs.dart';
 import '../../utils/snackbar_helper.dart';
@@ -215,7 +216,9 @@ class _SettingsScreenState extends State<SettingsScreen> with FocusableTab, Moun
 
                 _buildAdvancedSection(),
 
-                if (UpdateService.isUpdateCheckAvailable) ...[_buildUpdateSection()],
+                if (UpdateService.isUpdateCheckAvailable && !ForkUpdater.replacesUpstreamUpdates) ...[
+                  _buildUpdateSection(),
+                ],
 
                 // Hidden on Android TV / tvOS (no document picker); desktop in
                 // force-TV mode keeps it — FilePickerService works there.

@@ -429,4 +429,27 @@ extension _VideoPlayerPlaybackPromptMethods on VideoPlayerScreenState {
     _stillWatchingPauseFocusNode.unfocus();
     _stillWatchingContinueFocusNode.unfocus();
   }
+
+  /// Another device watched further while this one was paused (the
+  /// tracker's newerProgress): continue from there, or stay here. Either answer
+  /// plays on and reports again; dismissing keeps the player paused and asks
+  /// again on the next play.
+  Future<void> _askAboutNewerProgress() async {
+    final guard = _progressTracker?.newerProgress;
+    final currentPlayer = player;
+    if (_askingAboutNewerProgress || guard == null || currentPlayer == null || !mounted) return;
+    _askingAboutNewerProgress = true;
+    try {
+      final newer = await guard.closingSpot();
+      if (!mounted || newer == null || currentPlayer != player) return;
+      final continueThere = await showNewerProgressDialog(context, newer: newer, own: currentPlayer.state.position);
+      if (continueThere == null || !mounted || currentPlayer != player) return;
+      if (_progressTracker?.newerProgress != guard) return;
+      guard.release();
+      if (continueThere) await _seekPlayback(newer);
+      await _playWithPlaybackIntent(currentPlayer);
+    } finally {
+      _askingAboutNewerProgress = false;
+    }
+  }
 }

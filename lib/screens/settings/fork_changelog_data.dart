@@ -1,7 +1,7 @@
 /// Content for the in-app fork changelog screen. Plain English, newest first.
 ///
 /// Fork-local (this file does not exist upstream). Update the `This fork` section
-/// and bump `kForkUpdated` in `fork_info.dart` whenever a fork build ships.
+/// whenever a fork build ships (its version comes from the release build).
 library;
 
 class ChangelogEntry {

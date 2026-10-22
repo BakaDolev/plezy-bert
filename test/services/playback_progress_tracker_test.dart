@@ -2458,6 +2458,129 @@ void main() {
       expect(promotions, hasLength(1));
     });
   });
+
+  group('another device moving past a paused one', () {
+    const duration = Duration(minutes: 47);
+    Duration m(int minutes, [int seconds = 0]) => Duration(minutes: minutes, seconds: seconds);
+
+    ({_ResumePointClient client, _FakePlayer player, PlaybackProgressTracker tracker, List<int> keepalives}) paused(
+      FakeAsync async, {
+      bool guard = true,
+    }) {
+      final client = _ResumePointClient();
+      final player = _FakePlayer(position: m(28), duration: duration);
+      final keepalives = <int>[];
+      final tracker = PlaybackProgressTracker(
+        client: client,
+        metadata: _meta(),
+        player: player,
+        isOffline: false,
+        updateInterval: const Duration(seconds: 1),
+        onPausedKeepalive: () async => keepalives.add(keepalives.length),
+        guardAgainstNewerProgress: guard,
+      );
+      tracker.startTracking();
+      async.flushMicrotasks();
+      // Paused at 28:31, and the server saved it.
+      player.position = m(28, 31);
+      player.playing = false;
+      client.resumePoint = m(28, 31);
+      async.elapse(const Duration(seconds: 1));
+      async.flushMicrotasks();
+      return (client: client, player: player, tracker: tracker, keepalives: keepalives);
+    }
+
+    test('stops its paused reports and closes at the newer spot (#72 shape)', () {
+      fakeAsync((async) {
+        final (:client, :player, :tracker, :keepalives) = paused(async);
+        expect(client.updateProgressCalls.map((c) => (c.state, c.time)), [
+          ('playing', m(28).inMilliseconds),
+          ('paused', m(28, 31).inMilliseconds),
+        ]);
+
+        client.resumePoint = m(33); // the phone plays on
+        async.elapse(const Duration(seconds: 3));
+        async.flushMicrotasks();
+        expect(client.updateProgressCalls, hasLength(2), reason: 'no paused report may drag it back');
+        expect(tracker.newerProgress!.overtakenAt.value, m(33));
+        expect(keepalives, hasLength(4), reason: 'the stream stays alive until the viewer decides');
+
+        client.resumePoint = m(45, 3); // and stops there
+        unawaited(tracker.sendStoppedProgressOnce());
+        async.flushMicrotasks();
+        expect(client.updateProgressCalls.last.state, 'stopped');
+        expect(client.updateProgressCalls.last.time, m(45, 3).inMilliseconds);
+        expect(client.markWatchedCalls, isEmpty, reason: 'that watch belongs to the other device');
+        expect(player.state.position, m(28, 31));
+
+        tracker.dispose();
+      });
+    });
+
+    test('reports again once the viewer plays on here', () {
+      fakeAsync((async) {
+        final (:client, :player, :tracker, keepalives: _) = paused(async);
+        client.resumePoint = m(33);
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(tracker.newerProgress!.isOvertaken, isTrue);
+
+        // "Continue from 33:00": the player seeks, releases, plays.
+        player.position = m(33);
+        tracker.newerProgress!.release();
+        player.playing = true;
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+        expect(client.updateProgressCalls.last.state, 'playing');
+        expect(client.updateProgressCalls.last.time, m(33).inMilliseconds);
+
+        tracker.dispose();
+      });
+    });
+
+    test('a playing report while overtaken is held too', () {
+      fakeAsync((async) {
+        final (:client, :player, :tracker, keepalives: _) = paused(async);
+        client.resumePoint = m(33);
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+
+        player.playing = true; // played before the viewer answered
+        async.elapse(const Duration(seconds: 2));
+        async.flushMicrotasks();
+        expect(client.updateProgressCalls.map((c) => c.state), ['playing', 'paused']);
+
+        tracker.dispose();
+      });
+    });
+
+    test('off unless asked for: paused reports carry on and nothing is read', () {
+      fakeAsync((async) {
+        final (:client, player: _, :tracker, keepalives: _) = paused(async, guard: false);
+        client.resumePoint = m(33);
+        async.elapse(const Duration(seconds: 2));
+        async.flushMicrotasks();
+        expect(client.updateProgressCalls.map((c) => c.state), ['playing', 'paused', 'paused', 'paused']);
+        expect(client.resumePointReads, 0);
+        expect(tracker.newerProgress, isNull);
+
+        tracker.dispose();
+      });
+    });
+  });
+}
+
+/// A [_FakePlexClient] whose item carries the resume point the test sets, as
+/// another device would have moved it.
+class _ResumePointClient extends _FakePlexClient {
+  Duration? resumePoint;
+  int resumePointReads = 0;
+
+  @override
+  Future<MediaItem?> fetchItem(String id) async {
+    resumePointReads++;
+    return _meta(ratingKey: id, viewOffsetMs: resumePoint?.inMilliseconds);
+  }
 }
 
 /// A more precise fake than [_FakePlexClient]: lets the test independently

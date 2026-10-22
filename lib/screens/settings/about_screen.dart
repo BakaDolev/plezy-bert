@@ -7,9 +7,11 @@ import '../../widgets/focused_scroll_scaffold.dart';
 import '../../widgets/focusable_list_tile.dart';
 import '../../widgets/settings_section.dart';
 import '../../i18n/strings.g.dart';
+import '../../services/fork_update/fork_updater.dart';
 import '../../theme/mono_tokens.dart';
 import 'licenses_screen.dart';
 import 'fork_changelog_screen.dart';
+import 'fork_update_tiles.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -23,7 +25,7 @@ class AboutScreen extends StatelessWidget {
     return FutureBuilder<PackageInfo>(
       future: _packageInfoFuture,
       builder: (context, snapshot) {
-        final appVersion = snapshot.data?.version ?? '';
+        final appVersion = snapshot.hasData ? forkVersionText() : '';
         return FocusedScrollScaffold(
           title: Text(t.about.title),
           slivers: [
@@ -60,6 +62,8 @@ class AboutScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 40),
+
+                  if (ForkUpdater.isSupported) ...[const ForkUpdateTiles(), const SizedBox(height: 16)],
 
                   SettingsGroup(
                     margin: EdgeInsets.zero,
