@@ -26,6 +26,31 @@ const List<ChangelogSection> forkChangelog = [
     subtitle: 'What the voice-control fork adds on top of Plezy',
     entries: [
       ChangelogEntry(
+        date: '2026-10-22',
+        title: '0.0.3 (beta): every version in this changelog',
+        changes: [
+          'This changelog now lists every version of the fork, from 0.0.1 on, and each new version adds its own entry.',
+        ],
+      ),
+      ChangelogEntry(
+        date: '2026-10-22',
+        title: '0.0.2 (beta): the silent installer stays silent',
+        changes: [
+          'Double-clicking the silent installer shows only its progress bar; it no longer stops on a "Ready to Install" page.',
+          'The first version delivered inside the app: 0.0.1 offered it on Windows and Android, one click each.',
+        ],
+      ),
+      ChangelogEntry(
+        date: '2026-10-22',
+        title: '0.0.1 (beta): it updates itself, and a real Windows installer',
+        changes: [
+          'Plezy Fork updates itself: when it opens, or from About > Check for updates, it offers the next build in its own window (Install, Later or Skip), never while something plays. Every update is signature-checked before it installs.',
+          'About > Beta updates: take each beta as it comes out, or only full releases.',
+          'Windows: an installer that puts Plezy Fork beside the official Plezy (and can remove the official one, keeping your settings), and a silent installer for unattended machines.',
+          'The fork has its own version number, shown in About.',
+        ],
+      ),
+      ChangelogEntry(
         date: '2026-10-13',
         title: 'Caught up to Plezy 2.23.0',
         changes: [
