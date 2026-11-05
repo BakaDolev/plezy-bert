@@ -87,7 +87,7 @@ Future<void> _pumpEpisodeCard(
       child: ChangeNotifierProvider<DownloadProvider>.value(
         value: downloadProvider,
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: Scaffold(
             body: SizedBox(
               width: 360,

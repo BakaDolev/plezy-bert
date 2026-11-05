@@ -1373,8 +1373,8 @@ abstract class PlayerBase with PlayerStreamControllersMixin implements Player {
   @override
   Future<AudioRenderingMode?> getAudioRenderingMode() async => null;
 
-  /// mpv loudnorm targeting streaming-style loudness; mirrored by the
-  /// Android ExoPlayer effect parameters in AudioNormalizationEffect.kt.
+  /// mpv loudnorm targeting streaming-style loudness; Android uses
+  /// [_androidNormalizationFilter] instead.
   ///
   /// Dynamic-mode loudnorm always outputs float64 at 192 kHz, which made the
   /// AO open at f64/192k and forced the OS mixer to convert/resample on the
@@ -1383,26 +1383,30 @@ abstract class PlayerBase with PlayerStreamControllersMixin implements Player {
   /// chain back to 48 kHz float, so the conversion runs once on the buffered
   /// decode side. mpv's own `format` filter is used instead of lavfi
   /// `aformat` because the bundled Linux ffmpeg prunes lavfi filters.
+  static const String _loudnormFilter = 'loudnorm=I=-14:TP=-3:LRA=4,format=srate=48000:format=floatp';
+
+  /// Android's normalization: acompressor as a slow AGC toward -14 LUFS, then
+  /// alimiter as the -3 dB ceiling, with the parameters of ExoPlayer's
+  /// DynamicsProcessing (AudioNormalizationEffect.kt). `link=maximum` drives
+  /// every channel's gain from the loudest one, so 5.1 keeps its balance
+  /// without a fold to stereo.
   ///
-  /// Android downmixes to stereo *ahead* of loudnorm. The filter's f64/192 kHz
-  /// pass costs CPU per channel, and the Android SoCs measured cannot afford
-  /// the multichannel bill: on the 32-bit TV boxes (Fire TV Stick 4K Max,
-  /// Google TV Streamer, Box R 4K Plus) 8ch adds +2.62 CPU-s per media second
-  /// against ~1 core, so 5.1 holds 0.35–0.57x and 7.1 0.33x real time under an
-  /// underrun storm while stereo holds 0.985x; arm64 (Pixel 7, SHIELD) still
-  /// underruns 5–20 times a minute at 8ch. Limiting channels at the AO
-  /// (`audio-channels`, the "Audio Channels" setting) does not help because
-  /// it lands after the filter. Desktop and Apple measured clean at
-  /// 7.1 and keep the multichannel chain. `format=channels=` remixes through
-  /// swresample, so the downmix options (`audio-swresample-o`,
-  /// `audio-normalize-downmix`) apply to it as well.
-  static final String _loudnormFilter =
-      '${Platform.isAndroid ? 'format=channels=stereo,' : ''}'
-      'loudnorm=I=-14:TP=-3:LRA=4,format=srate=48000:format=floatp';
+  /// loudnorm is too heavy here: it runs on mpv's core thread, which also
+  /// hands video frames to the output, and on 32-bit TV boxes its f64/192 kHz
+  /// pass made those frames late (#2654). This chain stays at the source rate
+  /// and costs about 2% of loudnorm on 5.1. The platform effect is no
+  /// substitute either: attached to the AudioTrack's session (mpv-build's
+  /// `audiotrack-normalize`), DynamicsProcessing overflowed its ring buffer on
+  /// a Galaxy Z Fold6's 5.1 route, silencing audio and stuttering video
+  /// (#2832), and left a Fold3's spatialized 5.1 untouched.
+  static const String _androidNormalizationFilter =
+      'acompressor=threshold=-34dB:ratio=4:knee=6dB:attack=30:release=300:makeup=15dB:link=maximum,'
+      'alimiter=limit=-3dB:attack=1:release=60:level=false';
 
   @override
   Future<void> setAudioNormalization(bool enabled) async {
-    await setProperty('af', enabled ? _loudnormFilter : '');
+    final filter = Platform.isAndroid ? _androidNormalizationFilter : _loudnormFilter;
+    await setProperty('af', enabled ? filter : '');
   }
 
   /// mpv's `audio-channels` for each limit. The 5.1 limit is a list so stereo

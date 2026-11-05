@@ -94,13 +94,19 @@ mixin FocusableDetailScreenMixin<T extends StatefulWidget> on State<T>, GridFocu
   ///
   /// [behind] and [above] are painted in a Stack under and over the scroll
   /// view — artwork that must be taller than the header sliver, or chrome
-  /// pinned to the viewport. Both are usually [Positioned].
+  /// pinned to the viewport. Both are usually [Positioned]. They stay
+  /// full-bleed, while the scroll view sits inside the horizontal safe area
+  /// (a landscape notch, iPhone Duo's portrait sensor column).
   Widget buildDetailScaffold({
     required List<Widget> slivers,
     List<Widget> behind = const [],
     List<Widget> above = const [],
   }) {
-    Widget body = CustomScrollView(primary: true, slivers: [...slivers, const SliverSystemBottomInset()]);
+    Widget body = SafeArea(
+      top: false,
+      bottom: false,
+      child: CustomScrollView(primary: true, slivers: [...slivers, const SliverSystemBottomInset()]),
+    );
     if (behind.isNotEmpty || above.isNotEmpty) {
       body = Stack(children: [...behind, body, ...above]);
     }
@@ -135,6 +141,11 @@ mixin FocusableDetailScreenMixin<T extends StatefulWidget> on State<T>, GridFocu
       return false;
     }
   }
+
+  /// The app-bar arrow's action: leave directly. The detail [PopScope] only
+  /// routes a system back through the app bar first, which a tap on the arrow
+  /// has no use for.
+  void popFromAppBar() => Navigator.pop(context);
 
   /// Build focusable app bar action widgets
   List<Widget> buildFocusableAppBarActions() {
@@ -211,8 +222,10 @@ mixin FocusableDetailScreenMixin<T extends StatefulWidget> on State<T>, GridFocu
   /// grids pass the running total; single-grid screens keep the default 0.
   /// With an offset, up-navigation from this grid's first row falls through
   /// to framework traversal (crossing into the previous section's grid)
-  /// instead of jumping to the app bar. [isOffline] renders downloaded items
-  /// from local artwork and opens them offline.
+  /// instead of jumping to the app bar. [onFirstRowNavigateUp] replaces that
+  /// app-bar handoff for a screen with focusable content between the two.
+  /// [isOffline] renders downloaded items from local artwork and opens them
+  /// offline.
   ///
   /// [densityOverride] replaces the user's library density for this grid
   /// alone — for a grid that shares the screen with a fixed header and so
@@ -228,6 +241,7 @@ mixin FocusableDetailScreenMixin<T extends StatefulWidget> on State<T>, GridFocu
     CardShape? shape,
     int indexOffset = 0,
     bool isOffline = false,
+    VoidCallback? onFirstRowNavigateUp,
     VoidCallback? onExitDown,
     int? densityOverride,
   }) {
@@ -265,7 +279,7 @@ mixin FocusableDetailScreenMixin<T extends StatefulWidget> on State<T>, GridFocu
             // The first section's first row reaches the app bar; later
             // sections fall through to traversal, which enters the previous
             // section's grid.
-            onNavigateUp: position.isFirstRow && indexOffset == 0 ? navigateToAppBar : null,
+            onNavigateUp: position.isFirstRow && indexOffset == 0 ? onFirstRowNavigateUp ?? navigateToAppBar : null,
             // Last-row DOWN exits the grid to whatever section follows it, when
             // the caller wires one (e.g. the actor page's Known For row). Null
             // otherwise, preserving the existing single-grid behaviour.

@@ -33,7 +33,7 @@ void main() {
     final key = GlobalKey<PersonCreditStripState>();
     await tester.pumpWidget(
       MaterialApp(
-        theme: monoTheme(dark: true),
+        theme: monoTheme(MonoPalette.dark),
         home: Scaffold(
           body: SingleChildScrollView(
             child: SizedBox(

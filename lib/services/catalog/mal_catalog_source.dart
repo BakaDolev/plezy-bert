@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 
 import '../../media/media_kind.dart';
+import '../../media/media_rating.dart';
 import '../../models/catalog/catalog_cast_member.dart';
 import '../../models/catalog/catalog_item.dart';
 import '../../models/catalog/catalog_metadata.dart';
@@ -8,7 +9,8 @@ import '../../models/mal/mal_anime.dart';
 import '../../models/trackers/fribb_mapping_row.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/external_ids.dart';
-import '../trackers/fribb_mapping_store.dart';
+import '../trackers/anime_mappings_store.dart';
+import '../trackers/fribb_index.dart';
 import '../trackers/mal/mal_client.dart';
 import '../trackers/mal/mal_constants.dart';
 import '../trackers/tracker_exceptions.dart';
@@ -26,11 +28,11 @@ import 'catalog_watchlist_machinery.dart';
 /// mapping bridges both directions: catalog items are enriched with
 /// tvdb/tmdb/imdb (library matching, cross-source membership), and library
 /// items resolve to a MAL id via [resolveItemIds].
-class MalCatalogSource with CatalogWatchlistMachinery implements CatalogSource {
+class MalCatalogSource with CatalogWatchlistMachinery implements CatalogSource, CatalogCommunityRatings {
   final MalClient _client;
   final FribbMappingLookup _fribb;
 
-  MalCatalogSource(this._client, {FribbMappingLookup? fribb}) : _fribb = fribb ?? FribbMappingStore.instance;
+  MalCatalogSource(this._client, {FribbMappingLookup? fribb}) : _fribb = fribb ?? AnimeMappingsStore.instance;
 
   @override
   String get watchlistLogLabel => 'MAL: Plan to Watch';
@@ -138,6 +140,15 @@ class MalCatalogSource with CatalogWatchlistMachinery implements CatalogSource {
       related: related,
       relations: [for (final entry in groupedRelations.entries) CatalogRelation(type: entry.key, items: entry.value)],
     );
+  }
+
+  /// MyAnimeList's 0-10 mean score and how many users scored it (`/anime/{id}?fields=mean,num_scoring_users`).
+  @override
+  Future<List<MediaRatingSource>> fetchCommunityRatings(MediaKind kind, CatalogItemIds ids) async {
+    final malId = ids.mal;
+    if ((kind != MediaKind.movie && kind != MediaKind.show) || malId == null) return const [];
+    final score = await _client.getAnimeMeanScore(malId);
+    return [?MediaRatingSource.fromScale('mal', score?.mean, scale: 10, votes: score?.scoringUsers)];
   }
 
   /// Enrich concurrently so all items share one Fribb index load (per-item

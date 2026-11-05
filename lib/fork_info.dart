@@ -8,7 +8,7 @@ library;
 const String kForkName = 'Voice-control fork';
 
 /// The stock Plezy version this build is based on (About and the changelog footer).
-const String kForkUpstreamBase = '2.23.0';
+const String kForkUpstreamBase = '2.25.0';
 
 /// This build's own version, `x.y.z`, injected at build time via
 /// `--dart-define=FORK_VERSION`; empty in local/dev builds. Every beta bumps z;

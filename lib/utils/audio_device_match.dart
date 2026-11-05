@@ -1,4 +1,5 @@
 import '../mpv/mpv.dart';
+import 'app_logger.dart';
 
 /// The device in [devices] a controller means by [query], or null.
 ///
@@ -16,4 +17,20 @@ AudioDevice? matchAudioDevice(String query, List<AudioDevice> devices) {
     if (device.name.toLowerCase().contains(normalized)) return device;
   }
   return null;
+}
+
+/// Moves [player] onto a controller's chosen [device], then passes its name to
+/// [remember] so later videos open on it, as a pick in the player's own menu
+/// does. A device the core refuses is logged and not remembered.
+Future<void> applyRemoteAudioDevice(
+  Player player,
+  AudioDevice device,
+  Future<void> Function(String name) remember,
+) async {
+  try {
+    await player.setAudioDevice(device);
+    await remember(device.name);
+  } catch (error, stackTrace) {
+    appLogger.w('Companion remote: audio output not applied', error: error, stackTrace: stackTrace);
+  }
 }

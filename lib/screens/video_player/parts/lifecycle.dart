@@ -286,35 +286,7 @@ extension _VideoPlayerLifecycleMethods on VideoPlayerScreenState {
       return;
     }
 
-    // Suppress Watch Together heartbeats while backgrounded so App Nap
-    // doesn't cause stale position broadcasts that make guests loop.
-    _watchTogetherProvider?.setBackgrounded(true);
-
-    final currentPlayer = player;
-    if (currentPlayer == null || !_isPlayerInitialized) {
-      _recordLifecycleState('hidden', action: 'skipped_no_player');
-      return;
-    }
-
     final isTv = PlatformDetector.isTV();
-    if (widget.isLive && shouldStopLiveSessionForTvBackground(isTv: isTv, policy: _live.session?.backgroundPolicy)) {
-      _stopLiveSessionForTvBackground();
-
-      // Start the server cleanup before releasing the native stream. tvOS may
-      // suspend the process shortly after this lifecycle callback returns.
-      final stoppedReport = _sendStoppedProgressOnce();
-      try {
-        await currentPlayer.stop();
-      } catch (e, stackTrace) {
-        appLogger.w('Failed to stop live player while backgrounding', error: e, stackTrace: stackTrace);
-      }
-      await stoppedReport;
-      if (!mounted || _shuttingDown || currentPlayer != player) return;
-      await _mediaControls.suspendForTvBackground('hidden_live_stopped');
-      _recordLifecycleState('hidden', action: 'live_stopped_exit_on_resume');
-      return;
-    }
-
     final isAutomotive = PlatformDetector.isAutomotive();
     final shouldPauseForBackground = shouldPauseVideoForBackground(
       isHandheld: PlatformDetector.isMobile(context),
@@ -333,6 +305,37 @@ extension _VideoPlayerLifecycleMethods on VideoPlayerScreenState {
       isLive: widget.isLive,
       settingEnabled: SettingsService.instanceOrNull?.read(SettingsService.backgroundPlayback) ?? true,
     );
+
+    // A Watch Together room stops waiting for a player the background pauses.
+    // A covered desktop window, or a phone playing on as background audio,
+    // keeps playing, so its player stays in the room.
+    if (leavesWatchTogetherOnHide(pausesForBackground: shouldPauseForBackground, playsInBackground: playInBackground)) {
+      _watchTogetherProvider?.setBackgrounded(true);
+    }
+
+    final currentPlayer = player;
+    if (currentPlayer == null || !_isPlayerInitialized) {
+      _recordLifecycleState('hidden', action: 'skipped_no_player');
+      return;
+    }
+
+    if (widget.isLive && shouldStopLiveSessionForTvBackground(isTv: isTv, policy: _live.session?.backgroundPolicy)) {
+      _stopLiveSessionForTvBackground();
+
+      // Start the server cleanup before releasing the native stream. tvOS may
+      // suspend the process shortly after this lifecycle callback returns.
+      final stoppedReport = _sendStoppedProgressOnce();
+      try {
+        await currentPlayer.stop();
+      } catch (e, stackTrace) {
+        appLogger.w('Failed to stop live player while backgrounding', error: e, stackTrace: stackTrace);
+      }
+      await stoppedReport;
+      if (!mounted || _shuttingDown || currentPlayer != player) return;
+      await _mediaControls.suspendForTvBackground('hidden_live_stopped');
+      _recordLifecycleState('hidden', action: 'live_stopped_exit_on_resume');
+      return;
+    }
 
     // Pause first so Android MPV does not keep decoding against a transient
     // background surface while the app is locking or hiding.

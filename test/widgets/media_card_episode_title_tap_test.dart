@@ -62,7 +62,7 @@ void main() {
           value: provider,
           child: withProfileNavigationScope(
             child: MaterialApp(
-              theme: monoTheme(dark: true),
+              theme: monoTheme(MonoPalette.dark),
               navigatorObservers: [observer],
               home: Scaffold(
                 body: Center(

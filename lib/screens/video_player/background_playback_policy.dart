@@ -32,3 +32,12 @@ bool shouldPlayVideoInBackground({
 /// intent, and the hold comes back.
 bool screenOffListenerPresent({required bool backgroundAudioArmed, required bool intentToPlay}) =>
     backgroundAudioArmed && intentToPlay;
+
+/// Whether hiding the app takes this player out of its Watch Together room.
+///
+/// Upstream detaches a player the background pauses, so the room stops
+/// waiting for it. A phone that keeps playing as background audio
+/// ([shouldPlayVideoInBackground]) is still watching: it stays attached and
+/// keeps following the room's pause and seek.
+bool leavesWatchTogetherOnHide({required bool pausesForBackground, required bool playsInBackground}) =>
+    pausesForBackground && !playsInBackground;

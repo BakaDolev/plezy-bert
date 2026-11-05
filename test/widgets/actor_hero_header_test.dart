@@ -15,7 +15,7 @@ import 'package:plezy/widgets/rasterized_gradient.dart';
 // portrait card's corner radius — is present on the tree, matching how
 // ActorHeroHeader is actually themed in the app.
 Widget _wrap(Widget child) => MaterialApp(
-  theme: monoTheme(dark: true),
+  theme: monoTheme(MonoPalette.dark),
   home: Scaffold(body: child),
 );
 

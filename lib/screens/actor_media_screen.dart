@@ -18,6 +18,7 @@ import '../services/enrichment/actor_enrichment_client.dart';
 import '../services/enrichment/actor_enrichment_service.dart';
 import '../services/enrichment/actor_info.dart';
 import '../services/enrichment/person_online_page.dart';
+import '../services/plex_client.dart';
 import '../services/plex_discover_client.dart';
 import '../services/settings_service.dart';
 import '../utils/app_logger.dart';
@@ -84,6 +85,11 @@ class ActorMediaScreen extends StatefulWidget {
   /// traffic. Tests must reset this to `null` in `tearDown` — it is a static.
   @visibleForTesting
   static ActorEnrichmentService Function(ApiCache cache)? debugEnrichmentServiceFactory;
+
+  /// Test seam: when set, fetches the online person page for a plex.tv person
+  /// key instead of a real Discover session. Reset to `null` in `tearDown`.
+  @visibleForTesting
+  static Future<PersonOnlinePage?> Function(String tagKey)? debugOnlinePersonPageFetcher;
 
   @override
   State<ActorMediaScreen> createState() => _ActorMediaScreenState();
@@ -412,12 +418,21 @@ class _ActorMediaScreenState extends BaseMediaListDetailScreen<ActorMediaScreen>
     _applyTvInitialFocus();
   }
 
-  /// Fetches the Discover person page for [ActorMediaScreen.personTagKey].
-  /// Returns null (never throws) when there is no key, no Discover session
-  /// (e.g. no providers in a test tree), or the lookup fails.
+  /// Fetches the Discover person page for [ActorMediaScreen.personTagKey], or,
+  /// when the page was opened without one (an actor found by Search), for the
+  /// key the Plex server's person record holds (#68). Returns null (never
+  /// throws) when there is no key, no Discover session (e.g. no providers in a
+  /// test tree), or the lookup fails.
   Future<PersonOnlinePage?> _fetchOnlinePersonPage() async {
-    final tagKey = widget.personTagKey;
+    var tagKey = widget.personTagKey;
+    if (tagKey == null || tagKey.isEmpty) {
+      final client = _mediaClientOrNull;
+      tagKey = client is PlexClient ? await client.fetchPersonTagKey(widget.personId) : null;
+      if (!mounted) return null;
+    }
     if (tagKey == null || tagKey.isEmpty) return null;
+    final debugFetcher = ActorMediaScreen.debugOnlinePersonPageFetcher;
+    if (debugFetcher != null) return debugFetcher(tagKey);
     try {
       final session = await resolvePlexDiscoverSession(
         activeProfile: context.read<ActiveProfileProvider>(),
@@ -898,7 +913,12 @@ class _ActorMediaScreenState extends BaseMediaListDetailScreen<ActorMediaScreen>
     return SelectionArea(
       child: buildDetailScaffold(
         slivers: [
-          CustomAppBar(title: Text(widget.actorName), pinned: true, actions: buildFocusableAppBarActions()),
+          CustomAppBar(
+            title: Text(widget.actorName),
+            pinned: true,
+            actions: buildFocusableAppBarActions(),
+            onBackPressed: popFromAppBar,
+          ),
           _buildActorHeader(),
           ..._buildBodySlivers(),
         ],

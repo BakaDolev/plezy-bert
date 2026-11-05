@@ -10,7 +10,8 @@ import '../../models/trackers/fribb_mapping_row.dart';
 import '../../utils/country_codes.dart';
 import '../../utils/external_ids.dart';
 import '../trackers/anilist/anilist_client.dart';
-import '../trackers/fribb_mapping_store.dart';
+import '../trackers/anime_mappings_store.dart';
+import '../trackers/fribb_index.dart';
 import '../trackers/future_coalescer.dart';
 import 'catalog_source.dart';
 import 'catalog_watchlist_machinery.dart';
@@ -19,7 +20,7 @@ import 'catalog_watchlist_machinery.dart';
 ///
 /// The client is owned and rebound by `TrackersProvider`; this source only
 /// borrows it. Fribb bridges AniList/MAL identities to media-server IDs.
-class AnilistCatalogSource with CatalogWatchlistMachinery implements CatalogSource {
+class AnilistCatalogSource with CatalogWatchlistMachinery implements CatalogSource, CatalogCommunityRatings {
   static final RegExp _accentColorPattern = RegExp(r'^#[0-9a-fA-F]{6}$');
 
   final AnilistClient _client;
@@ -27,7 +28,7 @@ class AnilistCatalogSource with CatalogWatchlistMachinery implements CatalogSour
   final FutureCoalescer<int> _viewerIdLoad = FutureCoalescer<int>();
   int? _viewerId;
 
-  AnilistCatalogSource(this._client, {FribbMappingLookup? fribb}) : _fribb = fribb ?? FribbMappingStore.instance;
+  AnilistCatalogSource(this._client, {FribbMappingLookup? fribb}) : _fribb = fribb ?? AnimeMappingsStore.instance;
 
   @override
   CatalogSourceId get id => CatalogSourceId.anilist;
@@ -210,6 +211,21 @@ class AnilistCatalogSource with CatalogWatchlistMachinery implements CatalogSour
       related: mapped[0],
       relations: [for (final entry in groupedRelations.entries) CatalogRelation(type: entry.key, items: entry.value)],
     );
+  }
+
+  /// AniList's 0-100 average score (`Media.averageScore`), by AniList id or else MAL id; AniList gives no votes.
+  @override
+  Future<List<MediaRatingSource>> fetchCommunityRatings(MediaKind kind, CatalogItemIds ids) async {
+    if (kind != MediaKind.movie && kind != MediaKind.show) return const [];
+    final int? score;
+    if (ids.anilist case final anilistId?) {
+      score = await _client.getAverageScore(id: anilistId);
+    } else if (ids.mal case final malId?) {
+      score = await _client.getAverageScore(idMal: malId);
+    } else {
+      return const [];
+    }
+    return [?MediaRatingSource.fromScale('anilist', score, scale: 100)];
   }
 
   static List<CatalogCastMember>? _castFor(List<AnilistCharacter>? characters) => characters == null

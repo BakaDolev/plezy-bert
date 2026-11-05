@@ -1704,6 +1704,52 @@ void main() {
       expect(subtitleUri.queryParameters['ApiKey'], 'tok-abc');
     });
 
+    test('getPlaybackInitialization keeps the picked row among identical same-language files', () async {
+      Future<String?> pick(int index, {String title = 'Full'}) async {
+        Uri? playbackInfoUri;
+        final scoped = _clientWithPlaybackInfo(
+          (request) async {
+            playbackInfoUri = request.url;
+            return jsonResponse({
+              'MediaSources': [
+                {'Id': 'src-1'},
+              ],
+            });
+          },
+          itemSources: [
+            {
+              'Id': 'src-1',
+              'MediaStreams': [
+                for (final i in [3, 4])
+                  {'Index': i, 'Type': 'Subtitle', 'Codec': 'srt', 'Language': 'eng', 'Title': 'Full'},
+                {'Index': 5, 'Type': 'Subtitle', 'Codec': 'pgs', 'Language': 'eng', 'Title': 'Signs & Songs'},
+              ],
+            },
+          ],
+        );
+        addTearDown(scoped.close);
+        await scoped.getPlaybackInitialization(
+          PlaybackInitializationOptions(
+            metadata: testMediaItem(
+              id: 'item-1',
+              backend: MediaBackend.jellyfin,
+              kind: MediaKind.movie,
+              serverId: 'srv-1',
+            ),
+            selectedMediaIndex: 0,
+            preferredSubtitleTrack: SubtitlePreference.track(
+              SubtitleTrack(id: 'source:$index', title: title, language: 'eng', codec: 'srt'),
+            ),
+          ),
+        );
+        return playbackInfoUri!.queryParameters['SubtitleStreamIndex'];
+      }
+
+      expect(await pick(4), '4');
+      // A stale index whose row the intent ranks below the tied pair still declines.
+      expect(await pick(5), isNull);
+    });
+
     test('getPlaybackInitialization maps semantic subtitle preferences to current source rows', () async {
       Uri? playbackInfoUri;
       String? playbackInfoBody;
@@ -5220,6 +5266,43 @@ void main() {
       expect(query['PersonIds'], 'person-1');
       expect(query['StartIndex'], '20');
       expect(query['Limit'], '10');
+    });
+
+    test('fetchPersonDetails maps the Person item fields Jellyfin shows on its person page', () async {
+      final routed = _routedClient({
+        '/Users/user-1/Items/person-1': {
+          'Id': 'person-1',
+          'Name': 'Jeanette Nolan',
+          'Type': 'Person',
+          'Overview': 'Jeanette Nolan was an American actress.',
+          'PremiereDate': '1911-12-30T00:00:00.0000000Z',
+          'EndDate': '1998-06-05T00:00:00.0000000Z',
+          'ProductionLocations': ['Los Angeles, California, USA'],
+        },
+      });
+
+      final details = await routed.client.fetchPersonDetails('person-1');
+
+      expect(details.biography, 'Jeanette Nolan was an American actress.');
+      expect(details.birthDate, DateTime.utc(1911, 12, 30));
+      expect(details.deathDate, DateTime.utc(1998, 6, 5));
+      expect(details.birthPlace, 'Los Angeles, California, USA');
+    });
+
+    test('fetchPersonDetails leaves out the fields a Person item does not fill in', () async {
+      final routed = _routedClient({
+        '/Users/user-1/Items/person-1': {
+          'Id': 'person-1',
+          'Name': 'Tom Hanks',
+          'Type': 'Person',
+          'Overview': '',
+          'ProductionLocations': <String>[],
+        },
+      });
+
+      final details = await routed.client.fetchPersonDetails('person-1');
+
+      expect(details.isEmpty, isTrue);
     });
 
     test('fetchPersonMediaPage scopes People into Fields and maps the character role', () async {

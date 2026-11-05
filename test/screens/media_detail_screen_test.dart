@@ -99,7 +99,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -135,7 +135,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -194,7 +194,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -247,7 +247,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -288,7 +288,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -326,7 +326,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
         ),
       ),
@@ -386,7 +386,7 @@ void main() {
     await tester.pumpWidget(
       TranslationProvider(
         child: MaterialApp(
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: ChangeNotifierProvider<MultiServerProvider>.value(
             value: provider,
             child: withProfileNavigationScope(child: MediaDetailScreen(metadata: movie)),
@@ -511,7 +511,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -601,7 +601,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -686,7 +686,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -735,7 +735,7 @@ void main() {
       title: 'Readable Movie',
       summary: summary,
     );
-    final theme = monoTheme(dark: false);
+    final theme = monoTheme(MonoPalette.light);
 
     await tester.pumpWidget(
       TranslationProvider(
@@ -825,7 +825,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -920,7 +920,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1009,7 +1009,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1109,7 +1109,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1245,7 +1245,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1920, height: 1080, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1356,7 +1356,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1920, height: 1080, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1434,7 +1434,7 @@ void main() {
             child: MaterialApp(
               navigatorKey: navigator,
               navigatorObservers: [observer],
-              theme: monoTheme(dark: true),
+              theme: monoTheme(MonoPalette.dark),
               home: ProfileNavigationScope(
                 navigatorKey: navigator,
                 routeObserver: observer,
@@ -1725,7 +1725,7 @@ void main() {
           child: MaterialApp(
             navigatorKey: navigatorKey,
             navigatorObservers: [observer],
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: show)),
             ),
@@ -1789,7 +1789,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: MediaDetailScreen(metadata: movie)),
             ),
@@ -1910,7 +1910,7 @@ void main() {
             ],
             child: MaterialApp(
               navigatorObservers: [?observer],
-              theme: theme ?? monoTheme(dark: true),
+              theme: theme ?? monoTheme(MonoPalette.dark),
               home: withProfileNavigationScope(
                 child: MediaDetailScreen(
                   metadata: show,
@@ -1966,7 +1966,7 @@ void main() {
       // The hero scrim washes artwork toward the near-white light background;
       // the old hard-coded white title vanished into it on bright covers.
       final show = buildShow();
-      final theme = monoTheme(dark: false);
+      final theme = monoTheme(MonoPalette.light);
       await pumpPhoneDetail(tester, singleSeasonClient(show), show, theme: theme);
 
       final heroTitle = tester.widget<FittingTitleText>(find.byType(FittingTitleText).first);
@@ -2271,12 +2271,13 @@ void main() {
             serverId: 'server_1',
             serverName: 'Server',
           ).copyWith(
-            // Unbranded sources render a star icon plus the bare value text, so
-            // each badge is findable by its formatted value.
+            // Unbranded sources (Plex's critic and audience scores, a bare
+            // unattributed score) render a square icon plus the bare value
+            // text, so each badge is findable by its formatted value.
             ratings: const [
               MediaRatingSource(source: 'critic', value: 9.2),
-              MediaRatingSource(source: 'simkl', value: 7.4),
-              MediaRatingSource(source: 'mal', value: 6.4),
+              MediaRatingSource(source: 'audience', value: 7.4),
+              MediaRatingSource(source: '', value: 6.4),
             ],
           );
       final client = _FakeMediaServerClient(show: movie, childrenByParent: const {});
@@ -2914,7 +2915,7 @@ void main() {
               if (downloads != null) ChangeNotifierProvider<DownloadProvider>.value(value: downloads),
             ],
             child: MaterialApp(
-              theme: monoTheme(dark: true),
+              theme: monoTheme(MonoPalette.dark),
               home: ProfileNavigationScope(
                 navigatorKey: profileKey,
                 routeObserver: RouteObserver<PageRoute<dynamic>>(),
@@ -3164,6 +3165,49 @@ void main() {
       LibraryContentNotifier().notifyChanged(bulk);
       deleteExact(movie.id);
       await settleDetail(tester);
+      expect(find.text('home'), findsOneWidget);
+      expect(profileKey.currentState!.canPop(), isFalse);
+    });
+
+    testWidgets('a back on a covered detail leaves the dialog above it in place', (tester) async {
+      final profileKey = await pumpProfileNavigator(
+        tester,
+        homeRoute,
+        client: _FakeMediaServerClient(show: movie, childrenByParent: {}),
+      );
+      final detailClosed = profileKey.currentState!.push(mediaDetailRoute(metadata: movie));
+      await settleDetail(tester);
+      final dialogClosed = showDialog<void>(
+        context: tester.element(find.byType(MediaDetailScreen)),
+        useRootNavigator: false,
+        builder: (_) => const AlertDialog(content: Text('dialog')),
+      );
+      await settleDetail(tester);
+      final info = FocusManager.instance.rootScope.descendants.singleWhere(
+        (node) => node.debugLabel == 'tv_detail_info',
+      );
+
+      // Focus left in the covered detail, where a gamepad back landed (#2370):
+      // a blind pop from there closed the dialog above instead.
+      info.requestFocus();
+      await tester.pump();
+      expect(info.hasPrimaryFocus, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.gameButtonB);
+      await settleDetail(tester);
+
+      expect(find.text('dialog'), findsOneWidget);
+      expect(find.byType(MediaDetailScreen, skipOffstage: false), findsOneWidget);
+
+      // Uncovered, the same back leaves the detail, and only the detail.
+      profileKey.currentState!.pop();
+      await dialogClosed;
+      await settleDetail(tester);
+      info.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.gameButtonB);
+      await settleDetail(tester);
+
+      expect(await detailClosed, isFalse);
       expect(find.text('home'), findsOneWidget);
       expect(profileKey.currentState!.canPop(), isFalse);
     });

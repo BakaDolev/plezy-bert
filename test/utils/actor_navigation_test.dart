@@ -69,7 +69,7 @@ void main() {
         child: MaterialApp(
           navigatorKey: nav,
           // The full actor page reads the app's theme tokens.
-          theme: monoTheme(dark: true),
+          theme: monoTheme(MonoPalette.dark),
           home: Builder(
             builder: (context) => ElevatedButton(
               onPressed: () => navigateToActorMedia(

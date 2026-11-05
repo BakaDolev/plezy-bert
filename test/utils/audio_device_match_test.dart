@@ -42,4 +42,51 @@ void main() {
       expect(matchAudioDevice('tv', const []), isNull);
     });
   });
+
+  // The player's own menu remembers an output pick for later videos (#2744);
+  // a remote's pick must stick the same way, and only once the core took it.
+  group('applyRemoteAudioDevice', () {
+    test('moves the player onto the device and remembers it for later videos', () async {
+      final player = _AudioDevicePlayer();
+      final remembered = <String>[];
+
+      await applyRemoteAudioDevice(player, _devices[2], (name) async => remembered.add(name));
+
+      expect(player.applied, ['wasapi/{0.0.0.222}']);
+      expect(remembered, ['wasapi/{0.0.0.222}']);
+    });
+
+    test('remembers auto, which hands later videos back to automatic selection', () async {
+      final remembered = <String>[];
+
+      await applyRemoteAudioDevice(_AudioDevicePlayer(), AudioDevice.auto, (name) async => remembered.add(name));
+
+      expect(remembered, ['auto']);
+    });
+
+    test('a device the player refuses is not remembered and does not throw', () async {
+      final player = _AudioDevicePlayer(refuse: true);
+      final remembered = <String>[];
+
+      await applyRemoteAudioDevice(player, _devices[3], (name) async => remembered.add(name));
+
+      expect(remembered, isEmpty);
+    });
+  });
+}
+
+class _AudioDevicePlayer implements Player {
+  _AudioDevicePlayer({this.refuse = false});
+
+  final bool refuse;
+  final applied = <String>[];
+
+  @override
+  Future<void> setAudioDevice(AudioDevice device) async {
+    if (refuse) throw StateError('audio output refused');
+    applied.add(device.name);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

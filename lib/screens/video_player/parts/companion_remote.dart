@@ -294,14 +294,22 @@ extension _VideoPlayerCompanionCommandMethods on VideoPlayerScreenState {
   void _selectAudioDeviceFromCriteria(Map<String, dynamic> criteria) {
     final p = player;
     if (p == null) return;
+    // Remembered like a pick in the player's own menu, so the next video opens on it.
+    void apply(AudioDevice device) => unawaited(
+      applyRemoteAudioDevice(
+        p,
+        device,
+        (name) => SettingsService.instance.write(SettingsService.audioOutputDevice, name),
+      ),
+    );
     if (criteria['auto'] == true) {
-      unawaited(p.setAudioDevice(AudioDevice.auto));
+      apply(AudioDevice.auto);
       return;
     }
     final devices = p.state.audioDevices;
     final index = (criteria['index'] as num?)?.toInt();
     if (index != null) {
-      if (index >= 0 && index < devices.length) unawaited(p.setAudioDevice(devices[index]));
+      if (index >= 0 && index < devices.length) apply(devices[index]);
       return;
     }
     final name = criteria['name'] as String?;
@@ -311,7 +319,7 @@ extension _VideoPlayerCompanionCommandMethods on VideoPlayerScreenState {
       appLogger.d('Companion remote: no audio device matches the requested name');
       return;
     }
-    unawaited(p.setAudioDevice(device));
+    apply(device);
   }
 
   Future<void> _applySyncOffset(String property, Map<String, dynamic> criteria) async {

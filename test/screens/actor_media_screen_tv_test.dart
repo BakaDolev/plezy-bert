@@ -124,10 +124,10 @@ void main() {
     await tester.pumpWidget(
       // Real app hosts the hero inside a CustomScrollView's SliverToBoxAdapter
       // (see ActorMediaScreen._buildActorHeader), so mirror that scrollable
-      // shape here rather than a fixed-height body. monoTheme(dark: true) puts
+      // shape here rather than a fixed-height body. monoTheme(MonoPalette.dark) puts
       // MonoTokens on the tree (used by the portrait card corner radius).
       MaterialApp(
-        theme: monoTheme(dark: true),
+        theme: monoTheme(MonoPalette.dark),
         home: Scaffold(
           body: SingleChildScrollView(
             // TV-realistic width — the compact TV hero is a portrait + facts
@@ -247,7 +247,7 @@ class _ActorHarness {
             ChangeNotifierProvider<MultiServerProvider>.value(value: multiServerProvider),
             ChangeNotifierProvider<DownloadProvider>.value(value: downloadProvider),
           ],
-          child: MaterialApp(theme: monoTheme(dark: true), home: child),
+          child: MaterialApp(theme: monoTheme(MonoPalette.dark), home: child),
         ),
       ),
     );

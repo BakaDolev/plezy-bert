@@ -42,7 +42,7 @@ void main() {
     final key = GlobalKey<PersonFilmographyListState>();
     await tester.pumpWidget(
       MaterialApp(
-        theme: monoTheme(dark: true),
+        theme: monoTheme(MonoPalette.dark),
         home: Scaffold(
           body: SingleChildScrollView(
             child: SizedBox(
@@ -75,7 +75,7 @@ void main() {
     ];
     await tester.pumpWidget(
       MaterialApp(
-        theme: monoTheme(dark: true),
+        theme: monoTheme(MonoPalette.dark),
         home: Scaffold(
           body: SingleChildScrollView(
             child: SizedBox(

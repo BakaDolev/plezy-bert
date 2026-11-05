@@ -66,7 +66,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             navigatorObservers: observers,
             home: withProfileNavigationScope(
               child: SizedBox(
@@ -216,7 +216,7 @@ void main() {
             ChangeNotifierProvider<OfflineWatchSyncService>.value(value: offlineWatch),
           ],
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             navigatorObservers: [observer],
             home: withProfileNavigationScope(
               child: SizedBox(width: 1280, height: 720, child: EpisodeDetailScreen(metadata: ep)),
@@ -274,7 +274,7 @@ void main() {
           value: provider,
           child: withProfileNavigationScope(
             child: MaterialApp(
-              theme: monoTheme(dark: true),
+              theme: monoTheme(MonoPalette.dark),
               navigatorObservers: [observer],
               home: SizedBox(width: 1280, height: 720, child: EpisodeDetailScreen(metadata: ep)),
             ),
@@ -366,7 +366,7 @@ void main() {
         child: ChangeNotifierProvider<MultiServerProvider>.value(
           value: provider,
           child: MaterialApp(
-            theme: monoTheme(dark: true),
+            theme: monoTheme(MonoPalette.dark),
             home: withProfileNavigationScope(
               child: Builder(
                 builder: (context) => ElevatedButton(
@@ -651,7 +651,7 @@ void main() {
           child: ChangeNotifierProvider<MultiServerProvider>.value(
             value: provider,
             child: MaterialApp(
-              theme: monoTheme(dark: true),
+              theme: monoTheme(MonoPalette.dark),
               home: withProfileNavigationScope(
                 child: Builder(
                   builder: (context) => ElevatedButton(
@@ -680,6 +680,88 @@ void main() {
       await tester.pump();
 
       expect(poppedResult, isFalse, reason: 'no watch-state change occurred, so it pops with _changed == false');
+    });
+  });
+
+  group('hide spoilers', () {
+    // Mirrors EpisodeCard (episode_card.dart): an unwatched episode's still is
+    // blurred and its summary hidden while the setting is on. PLEZY_BLUR_ARTWORK
+    // is unset in tests, so the only ImageFiltered on the page is the spoiler blur.
+    Future<void> setHideSpoilers(bool value) async {
+      await SettingsService.getInstance();
+      await SettingsService.instance.write(SettingsService.hideSpoilers, value);
+    }
+
+    MediaItem spoilerEpisode({String id = 'sp1', int? viewCount}) => fakeEpisode(
+      id: id,
+      title: 'Spoiler Episode',
+      summary: 'The secret plot twist.',
+      thumbPath: '/library/metadata/$id/thumb',
+      viewOffsetMs: 600000,
+      durationMs: 1200000,
+      viewCount: viewCount,
+    );
+
+    testWidgets('setting on: a half-watched episode has a blurred still and no summary', (tester) async {
+      await setHideSpoilers(true);
+      final ep = spoilerEpisode();
+      await pumpScreen(tester, ep, FakeEpisodeClient(item: ep));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(ImageFiltered), findsOneWidget);
+      expect(find.text('The secret plot twist.'), findsNothing);
+      expect(find.text('Spoiler Episode'), findsOneWidget, reason: 'the title stays, as on the cards');
+    });
+
+    testWidgets('setting on: a watched episode keeps its still and summary', (tester) async {
+      await setHideSpoilers(true);
+      final ep = spoilerEpisode(id: 'sp2', viewCount: 1);
+      await pumpScreen(tester, ep, FakeEpisodeClient(item: ep));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(ImageFiltered), findsNothing);
+      expect(find.text('The secret plot twist.'), findsOneWidget);
+    });
+
+    testWidgets('setting off: an unwatched episode keeps its still and summary', (tester) async {
+      await setHideSpoilers(false);
+      final ep = spoilerEpisode(id: 'sp3');
+      await pumpScreen(tester, ep, FakeEpisodeClient(item: ep));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(ImageFiltered), findsNothing);
+      expect(find.text('The secret plot twist.'), findsOneWidget);
+    });
+
+    testWidgets('turning the setting on while the page is open blurs it at once', (tester) async {
+      await setHideSpoilers(false);
+      final ep = spoilerEpisode(id: 'sp4');
+      await pumpScreen(tester, ep, FakeEpisodeClient(item: ep));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(ImageFiltered), findsNothing);
+
+      await SettingsService.instance.write(SettingsService.hideSpoilers, true);
+      await tester.pump();
+
+      expect(find.byType(ImageFiltered), findsOneWidget);
+      expect(find.text('The secret plot twist.'), findsNothing);
+    });
+
+    testWidgets('TV: setting on blurs the still and hides the summary there too', (tester) async {
+      TvDetectionService.debugSetAppleTVOverride(true);
+      addTearDown(() => TvDetectionService.debugSetAppleTVOverride(null));
+      await setHideSpoilers(true);
+      final ep = spoilerEpisode(id: 'sp5');
+      await pumpScreen(tester, ep, FakeEpisodeClient(item: ep));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(ImageFiltered), findsOneWidget);
+      expect(find.text('The secret plot twist.'), findsNothing);
     });
   });
 

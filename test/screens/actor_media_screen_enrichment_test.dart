@@ -21,11 +21,14 @@ import 'package:plezy/services/download_storage_service.dart';
 import 'package:plezy/services/enrichment/actor_enrichment_client.dart';
 import 'package:plezy/services/enrichment/actor_enrichment_service.dart';
 import 'package:plezy/services/enrichment/actor_info.dart';
+import 'package:plezy/services/enrichment/person_online_page.dart';
 import 'package:plezy/services/jellyfin_api_cache.dart';
 import 'package:plezy/services/multi_server_manager.dart';
 import 'package:plezy/services/plex_api_cache.dart';
+import 'package:plezy/services/plex_client.dart';
 import 'package:plezy/services/settings_service.dart';
 import 'package:plezy/theme/mono_theme.dart';
+import 'package:plezy/utils/active_client_scope.dart';
 import 'package:plezy/utils/media_server_http_client.dart' show AbortController;
 import 'package:plezy/utils/platform_detector.dart';
 import 'package:plezy/widgets/focusable_media_card.dart';
@@ -58,7 +61,63 @@ void main() {
 
   tearDown(() {
     ActorMediaScreen.debugEnrichmentServiceFactory = null;
+    ActorMediaScreen.debugOnlinePersonPageFetcher = null;
     TvDetectionService.debugSetAppleTVOverride(null);
+  });
+
+  // #68: an actor opened from Search has no plex.tv person key. The page asks
+  // the server for it, then loads the online page (bio, Known For, the full
+  // filmography) as it does for an actor opened from a Cast row.
+  testWidgets('opened without a person key: looks the key up on the server and loads the online page', (tester) async {
+    final harness = await _createHarness([_movie('movie_1')], backend: MediaBackend.plex, plexPersonTagKey: 'tag-123');
+    final client = ActorEnrichmentClient();
+    addTearDown(client.dispose);
+    final fake = _FakeEnrichmentService(
+      PlexApiCache.instance,
+      client,
+      plexResult: const ActorInfo(bio: 'From Wikidata.'),
+    );
+    ActorMediaScreen.debugEnrichmentServiceFactory = (cache) => fake;
+    final asked = <String>[];
+    ActorMediaScreen.debugOnlinePersonPageFetcher = (tagKey) async {
+      asked.add(tagKey);
+      return const PersonOnlinePage(bio: 'From the online page.');
+    };
+
+    await tester.pumpWidget(harness.wrap(_host(backend: MediaBackend.plex)));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(asked, ['tag-123']);
+    expect(fake.enrichPlexCalled, isFalse);
+    expect(find.text('From the online page.'), findsOneWidget);
+  });
+
+  testWidgets('a server with no key for the person keeps the Wikidata fallback', (tester) async {
+    final harness = await _createHarness([_movie('movie_1')], backend: MediaBackend.plex, plexPersonTagKey: null);
+    final client = ActorEnrichmentClient();
+    addTearDown(client.dispose);
+    final fake = _FakeEnrichmentService(
+      PlexApiCache.instance,
+      client,
+      plexResult: const ActorInfo(bio: 'From Wikidata.'),
+    );
+    ActorMediaScreen.debugEnrichmentServiceFactory = (cache) => fake;
+    final asked = <String>[];
+    ActorMediaScreen.debugOnlinePersonPageFetcher = (tagKey) async {
+      asked.add(tagKey);
+      return const PersonOnlinePage(bio: 'From the online page.');
+    };
+
+    await tester.pumpWidget(harness.wrap(_host(backend: MediaBackend.plex)));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(asked, isEmpty);
+    expect(fake.enrichPlexCalled, isTrue);
+    expect(find.text('From Wikidata.'), findsOneWidget);
   });
 
   testWidgets('Plex backend + setting on: calls enrichPlex (not enrichJellyfin), hero fills in', (tester) async {
@@ -236,7 +295,13 @@ Widget _host({required MediaBackend backend}) {
   );
 }
 
-Future<_ActorHarness> _createHarness(List<MediaItem> items, {required MediaBackend backend}) async {
+/// [plexPersonTagKey]: when the parameter is passed at all, the client is a Plex client whose server knows that
+/// plex.tv key for every person (null: knows none). Left out, the client is a plain [MediaServerClient].
+Future<_ActorHarness> _createHarness(
+  List<MediaItem> items, {
+  required MediaBackend backend,
+  Object? plexPersonTagKey = _noPlexClient,
+}) async {
   await SettingsService.getInstance();
 
   final database = AppDatabase.forTesting(NativeDatabase.memory());
@@ -253,7 +318,9 @@ Future<_ActorHarness> _createHarness(List<MediaItem> items, {required MediaBacke
   await downloadProvider.ensureInitialized();
 
   final cache = backend == MediaBackend.plex ? PlexApiCache.instance : JellyfinApiCache.instance;
-  final client = _EnrichmentTestClient(items, backend, cache);
+  final client = identical(plexPersonTagKey, _noPlexClient)
+      ? _EnrichmentTestClient(items, backend, cache)
+      : _PlexEnrichmentTestClient(items, backend, cache, plexPersonTagKey as String?);
   final manager = MultiServerManager()..debugRegisterClientForTesting(client);
   final multiServerProvider = testMultiServerProvider(manager);
 
@@ -281,7 +348,7 @@ class _ActorHarness {
             ChangeNotifierProvider<MultiServerProvider>.value(value: multiServerProvider),
             ChangeNotifierProvider<DownloadProvider>.value(value: downloadProvider),
           ],
-          child: MaterialApp(theme: monoTheme(dark: true), home: child),
+          child: MaterialApp(theme: monoTheme(MonoPalette.dark), home: child),
         ),
       ),
     );
@@ -333,4 +400,23 @@ class _EnrichmentTestClient implements MediaServerClient {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+const Object _noPlexClient = Object();
+
+/// A Plex client double whose server answers the person-key lookup with [tagKey].
+class _PlexEnrichmentTestClient extends _EnrichmentTestClient implements PlexClient {
+  final String? tagKey;
+
+  _PlexEnrichmentTestClient(super.items, super.backend, super.cache, this.tagKey);
+
+  @override
+  PlexProfileScopeId get profileScopeId => buildPlexProfileScopeId(serverId: serverId, profileId: 'profile-1');
+
+  @override
+  Future<String?> fetchPersonTagKey(String personId, {AbortController? abort}) async => tagKey;
+
+  /// The page's character captions: none needed here.
+  @override
+  Future<List<MediaItem>> fetchItemsByIds(List<String> ids) async => const [];
 }

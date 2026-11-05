@@ -26,6 +26,17 @@ const List<ChangelogSection> forkChangelog = [
     subtitle: 'What the voice-control fork adds on top of Plezy',
     entries: [
       ChangelogEntry(
+        date: '2026-11-05',
+        title: '1.0.1 (beta): caught up to Plezy 2.25',
+        changes: [
+          'Rebuilt on the latest Plezy (2.25 and the fixes after it, up two releases from 2.23.0) with every fork feature replayed on top.',
+          'An audio output picked by voice is remembered for later videos, like a pick in the player menu.',
+          'A phone playing on with the screen off stays in its Watch Together room and keeps following it.',
+          'Hide Spoilers also blurs the picture and hides the summary on the episode page.',
+          'An actor opened from Search gets the full actor page: bio, Known For and the whole filmography.',
+        ],
+      ),
+      ChangelogEntry(
         date: '2026-10-22',
         title: '0.0.3 (beta): every version in this changelog',
         changes: [
@@ -148,7 +159,7 @@ const List<ChangelogSection> forkChangelog = [
   ),
   ChangelogSection(
     heading: 'Plezy (upstream)',
-    subtitle: 'The stock app this build is based on — highlights from 2.17 → 2.23',
+    subtitle: 'The stock app this build is based on — highlights from 2.17 → 2.25',
     entries: [
       ChangelogEntry(
         date: 'Plezy 2.17 – 2.20',
@@ -170,7 +181,7 @@ const List<ChangelogSection> forkChangelog = [
       ),
       ChangelogEntry(
         date: 'Plezy 2.21',
-        title: 'Latest release',
+        title: 'Filters and volume',
         changes: [
           'Library filters with multiple values, exclusions and ranges; grouping, sorting and filters for downloads.',
           'An on-screen pill for every volume change, and a "shuffle starts at the beginning" setting.',
@@ -190,12 +201,42 @@ const List<ChangelogSection> forkChangelog = [
       ),
       ChangelogEntry(
         date: 'Plezy 2.23',
-        title: 'Latest release',
+        title: 'Multi-part movies and steadier streams',
         changes: [
           'Movies split across several files play as one title, and a stream stopped from the Plex dashboard stays stopped.',
           'Streams no longer stall at start when the network ignores IPv6 lookups, and slow servers are waited on instead of reported unreachable.',
           'Enter skips the intro on desktop; phone detail pages show IMDb, Rotten Tomatoes and TMDB ratings.',
           'Downloads resume where they stopped on Android, group by collection, and can be retried in bulk.',
+        ],
+      ),
+      ChangelogEntry(
+        date: 'Plezy 2.24',
+        title: 'Person pages and smoother TV boxes',
+        changes: [
+          'Person pages show a biography, birth and death dates and birthplace; detail pages show scores from connected Trakt, Simkl, MyAnimeList, AniList and MDBList accounts.',
+          'Plex playback no longer crashes seconds in on 32-bit Android TV boxes, and TV boxes drop fewer frames in menus and the player.',
+          'Normalize Loudness no longer stutters video on Android, and 24 fps video no longer judders on a 60 Hz display.',
+          'The audio output picked in the player is remembered across videos, and Skip Credits no longer appears in the middle of a movie.',
+          'Watch Together rooms run on Open Watch Party and work across servers.',
+        ],
+      ),
+      ChangelogEntry(
+        date: 'Plezy 2.25',
+        title: 'Latest release',
+        changes: [
+          'Skip Intro and Skip Credits recognise chapters with generic or non-English names.',
+          'plezy:// links can open a chosen profile and play a movie or show from any server, and wake Google TV from the screensaver.',
+          'Passthrough no longer stops playback after a display mode switch, and resuming no longer skips audio on Android.',
+          'The TV remote keeps working after switching profiles, and backing out of a finished episode focuses the next one in Continue Watching.',
+        ],
+      ),
+      ChangelogEntry(
+        date: 'After 2.25',
+        title: 'Fixes since the release',
+        changes: [
+          'The TV remote\'s OK button keeps working on boxes that report it as a modifier key.',
+          'Continue Watching asks which copy to play when it merged several; a whole movie or TV library can be shuffled.',
+          'Phones without Vulkan 1.1 no longer crash at launch, and Dolby Vision letterbox bars stay black on Amlogic boxes.',
         ],
       ),
     ],

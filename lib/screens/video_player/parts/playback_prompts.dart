@@ -239,7 +239,7 @@ extension _VideoPlayerPlaybackPromptMethods on VideoPlayerScreenState {
       failureReason: _episode.lastReloadFailureReason,
       hasNext: _episode.next != null,
       autoPlayEnabled: settings.read(SettingsService.autoPlayNextEpisode),
-      inWatchTogetherSession: _activeWatchTogetherSession() != null,
+      inWatchTogetherSession: _watchTogetherRoom() != null,
       autoRetriesUsed: _episode.playNextTransientRetryCount,
     );
     if (presentation == PlayNextRetryPresentation.none) return;
@@ -380,7 +380,9 @@ extension _VideoPlayerPlaybackPromptMethods on VideoPlayerScreenState {
   void _onStillWatchingTimeout() {
     _unfocusStillWatchingPrompt();
     final currentPlayer = player;
-    if (currentPlayer != null) unawaited(_pauseWithPlaybackIntent(currentPlayer));
+    if (currentPlayer != null) {
+      _dispatchPlaybackIntent(_pauseWithPlaybackIntent(currentPlayer), source: 'Still watching');
+    }
     _setPlayerState(() {
       _showStillWatchingPrompt = false;
     });
@@ -399,7 +401,9 @@ extension _VideoPlayerPlaybackPromptMethods on VideoPlayerScreenState {
     _stillWatchingTimer?.cancel();
     _unfocusStillWatchingPrompt();
     final currentPlayer = player;
-    if (currentPlayer != null) unawaited(_pauseWithPlaybackIntent(currentPlayer));
+    if (currentPlayer != null) {
+      _dispatchPlaybackIntent(_pauseWithPlaybackIntent(currentPlayer), source: 'Still watching');
+    }
     _setPlayerState(() {
       _showStillWatchingPrompt = false;
     });

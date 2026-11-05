@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -9,9 +10,11 @@ import '../focus/key_event_utils.dart';
 import '../i18n/strings.g.dart';
 import '../media/ids.dart';
 import '../media/media_item.dart';
+import '../media/media_item_types.dart';
 import '../media/media_role.dart';
 import '../media/media_server_client.dart';
 import '../services/media_list_playback_launcher.dart';
+import '../services/settings_service.dart';
 import '../services/watch_actions.dart';
 import '../utils/actor_navigation.dart';
 import '../utils/content_utils.dart';
@@ -36,6 +39,7 @@ import '../widgets/optimized_media_image.dart';
 import '../widgets/overlay_sheet.dart';
 import '../widgets/placeholder_container.dart';
 import '../widgets/rasterized_gradient.dart';
+import '../widgets/settings_builder.dart';
 import '../widgets/tv_spotlight_background.dart';
 import 'media_detail_screen.dart';
 
@@ -436,18 +440,29 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
   /// yet ([episodeDetailRoute] takes no `localPosterPath`), so an offline
   /// episode without a resolvable network path just falls through to the
   /// placeholder rather than crashing.
+  ///
+  /// With [SettingsService.hideSpoilers] on, an unwatched episode's still is
+  /// blurred exactly as [EpisodeCard] blurs its thumbnail.
   Widget _buildHeroStill(MediaItem ep) {
     final stillPath = ep.thumbPath ?? ep.grandparentArtPath;
     if (stillPath == null) {
       return const PlaceholderContainer(child: AppIcon(Symbols.movie_rounded, fill: 1, size: 32));
     }
-    return OptimizedMediaImage.thumb(
-      client: _clientFor(ep),
-      imagePath: stillPath,
-      fit: BoxFit.cover,
-      placeholder: (context, url) => const PlaceholderContainer(),
-      errorWidget: (context, url, error) =>
-          const PlaceholderContainer(child: AppIcon(Symbols.movie_rounded, fill: 1, size: 32)),
+    return SettingValueBuilder<bool>(
+      pref: SettingsService.hideSpoilers,
+      child: OptimizedMediaImage.thumb(
+        client: _clientFor(ep),
+        imagePath: stillPath,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => const PlaceholderContainer(),
+        errorWidget: (context, url, error) =>
+            const PlaceholderContainer(child: AppIcon(Symbols.movie_rounded, fill: 1, size: 32)),
+      ),
+      builder: (context, hideSpoilers, image) => hideSpoilers && ep.shouldHideSpoiler
+          ? ClipRect(
+              child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12), child: image),
+            )
+          : image!,
     );
   }
 
@@ -838,7 +853,12 @@ class _EpisodeDetailScreenState extends State<EpisodeDetailScreen> {
           if (_loading && _current.summary == null)
             const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator()),
           if (_current.summary != null && _current.summary!.isNotEmpty)
-            Text(_current.summary!, style: Theme.of(context).textTheme.bodyMedium),
+            SettingValueBuilder<bool>(
+              pref: SettingsService.hideSpoilers,
+              builder: (context, hideSpoilers, _) => hideSpoilers && _current.shouldHideSpoiler
+                  ? const SizedBox.shrink()
+                  : Text(_current.summary!, style: Theme.of(context).textTheme.bodyMedium),
+            ),
           ?_buildCastSection(_current),
           ?_buildCrew(_current),
         ],

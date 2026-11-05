@@ -100,4 +100,21 @@ void main() {
       expect(screenOffListenerPresent(backgroundAudioArmed: false, intentToPlay: false), isFalse);
     });
   });
+
+  // Upstream takes a player the background pauses out of its Watch Together
+  // room. A phone that keeps playing as background audio is still watching:
+  // it must stay in the room and keep following its pause and seek.
+  group('leavesWatchTogetherOnHide', () {
+    test('a player the background pauses leaves the room', () {
+      expect(leavesWatchTogetherOnHide(pausesForBackground: true, playsInBackground: false), isTrue);
+    });
+
+    test('a phone that keeps playing in the background stays in the room', () {
+      expect(leavesWatchTogetherOnHide(pausesForBackground: true, playsInBackground: true), isFalse);
+    });
+
+    test('a covered desktop window keeps playing and stays in the room', () {
+      expect(leavesWatchTogetherOnHide(pausesForBackground: false, playsInBackground: false), isFalse);
+    });
+  });
 }

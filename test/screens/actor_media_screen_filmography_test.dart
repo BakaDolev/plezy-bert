@@ -173,7 +173,7 @@ class _Harness {
             ChangeNotifierProvider<MultiServerProvider>.value(value: multiServerProvider),
             ChangeNotifierProvider<DownloadProvider>.value(value: downloadProvider),
           ],
-          child: MaterialApp(theme: monoTheme(dark: true), home: child),
+          child: MaterialApp(theme: monoTheme(MonoPalette.dark), home: child),
         ),
       ),
     );
