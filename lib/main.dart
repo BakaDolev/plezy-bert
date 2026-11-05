@@ -57,6 +57,7 @@ import 'services/app_icon/app_icon_service.dart';
 import 'services/gamepad_service.dart';
 import 'services/trackers/tracker_coordinator.dart';
 import 'services/playback_coordinator.dart';
+import 'services/companion_remote/remote_profile_switch.dart';
 import 'services/deep_links/deep_link_service.dart';
 import 'providers/account_preferences_controller.dart';
 import 'services/account_preferences_repository.dart';
@@ -1345,6 +1346,10 @@ void _registerShaderLicenses() {
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// How long startup holds the splash for the downloads metadata refresh.
+@visibleForTesting
+const startupDownloadsWait = Duration(seconds: 1);
+
 @visibleForTesting
 bool shouldEnterOfflineModeAfterStartupBind({required bool bindingSucceeded, required bool hasOnlineServers}) {
   return !bindingSucceeded && !hasOnlineServers;
@@ -1500,6 +1505,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
     // The first read registers the link channel handler.
     DeepLinkService.instance.host = const _RootDeepLinkProfileHost();
+    RemoteProfileSwitcher.instance.rootContext = () => rootNavigatorKey.currentState?.overlay?.context;
 
     _appLifecycleListener = AppLifecycleListener(
       onExitRequested: () async {
@@ -2442,9 +2448,11 @@ class _SetupScreenState extends State<SetupScreen> with MountedSetStateMixin {
 
       var bindingSucceeded = activeProfile.lastBindingSucceeded;
       if (shouldPrompt) {
+        // No profile session exists yet, so the picker runs the remote host
+        // itself: a remote can switch to its profile from here.
         await Navigator.of(
           context,
-        ).push(MaterialPageRoute(builder: (_) => const ProfileSwitchScreen(requireSelection: true)));
+        ).push(MaterialPageRoute(builder: (_) => const ProfileSwitchScreen(requireSelection: true, hostRemote: true)));
         if (!mounted) return;
         bindingSucceeded = activeProfile.active != null && activeProfile.lastBindingSucceeded;
       } else if (!linkSwitches) {
@@ -2472,7 +2480,19 @@ class _SetupScreenState extends State<SetupScreen> with MountedSetStateMixin {
       // are resolvable (the Connections row + live MediaBrowser client are in
       // place). Without this the downloads list and sync-rule titles render
       // empty until something forces a later refresh.
-      await downloadProvider.refreshMetadataFromCache();
+      //
+      // Bounded: the downloader's recovery, which this waits for, scans the
+      // OS temp folder for leftover partial files, and a Windows %TEMP% with
+      // hundreds of thousands of entries held the splash for seconds. Past
+      // the bound the refresh carries on and the downloads list updates when
+      // it lands.
+      final metadataRefresh = downloadProvider.refreshMetadataFromCache();
+      await Future.any<void>([metadataRefresh, Future<void>.delayed(startupDownloadsWait)]);
+      unawaited(
+        metadataRefresh.catchError((Object e, StackTrace st) {
+          appLogger.w('Setup: download metadata refresh failed', error: e, stackTrace: st);
+        }),
+      );
       if (!mounted) return;
 
       AndroidExitDiagnostics.markStartupPhase(AndroidStartupPhase.mainScreen);

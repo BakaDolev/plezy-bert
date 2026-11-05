@@ -59,6 +59,8 @@ import '../services/settings_service.dart';
 import '../providers/offline_mode_provider.dart';
 import '../services/companion_remote/companion_remote_host_controller.dart';
 import '../services/companion_remote/companion_remote_receiver.dart';
+import '../services/companion_remote/remote_profile_switch.dart';
+import '../models/companion_remote/remote_command.dart';
 import '../services/fullscreen_state_manager.dart';
 import '../providers/companion_remote_provider.dart';
 import '../utils/desktop_window_padding.dart';
@@ -984,6 +986,8 @@ class _MainScreenState extends State<MainScreen>
         CompanionRemoteReceiver.instance.handleCommand(command, context);
       }
     };
+    final activeProfileForRemote = context.read<ActiveProfileProvider>();
+    companionRemote.hostStateExtras = () => RemoteProfileSwitcher.instance.hostState(activeProfileForRemote);
 
     final receiver = CompanionRemoteReceiver.instance;
     receiver.navigationOwner = this;
@@ -1023,6 +1027,12 @@ class _MainScreenState extends State<MainScreen>
       }
     };
     receiver.onSetFullscreen = (enabled) => unawaited(FullscreenStateManager().applyFullscreen(enabled));
+    receiver.onSwitchProfile = (data) => unawaited(
+      RemoteProfileSwitcher.instance.handle(
+        data,
+        reply: (result) => companionRemote.sendCommand(RemoteCommandType.switchProfileResult, data: result),
+      ),
+    );
     receiver.onPlayMediaAction = (serverId, ratingKey, offset) async {
       try {
         final multiServer = context.read<MultiServerProvider>();
@@ -1108,7 +1118,16 @@ class _MainScreenState extends State<MainScreen>
       final settings = await SettingsService.getInstance();
       if (!settings.read(SettingsService.enableCompanionRemoteServer)) return;
       if (!mounted) return;
+      final companionRemote = context.read<CompanionRemoteProvider>();
+      final activeProfile = context.read<ActiveProfileProvider>();
       await startCompanionRemoteHost(context);
+      // A remote that reconnected after switching profiles waits for this
+      // session's profile to be ready before it plays anything.
+      unawaited(
+        activeProfile.awaitBindingSettle().then((_) {
+          if (mounted && companionRemote.isHostServerRunning) companionRemote.resendHostState();
+        }),
+      );
     } catch (e) {
       appLogger.e('CompanionRemote: Failed to auto-start server', error: e);
     }

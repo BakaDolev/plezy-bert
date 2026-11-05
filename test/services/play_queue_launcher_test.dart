@@ -36,6 +36,8 @@ class _StubPlexClient implements PlexClient {
 
   final List<({String? uri, int shuffle, String? librarySectionID})> createdQueues = [];
 
+  final List<({String showRatingKey, int shuffle})> createdShowQueues = [];
+
   @override
   Future<String> buildFolderUri(String folderKey) async => 'server://machine-1/com.plexapp.plugins.library$folderKey';
 
@@ -54,6 +56,18 @@ class _StubPlexClient implements PlexClient {
     createdQueues.add((uri: uri, shuffle: shuffle, librarySectionID: librarySectionID));
     await gate?.future;
     return response!;
+  }
+
+  @override
+  Future<PlayQueueResponse?> createShowPlayQueue({
+    required String showRatingKey,
+    int shuffle = 0,
+    String? startingEpisodeKey,
+    String? librarySectionID,
+    String? librarySectionTitle,
+  }) async {
+    createdShowQueues.add((showRatingKey: showRatingKey, shuffle: shuffle));
+    return response;
   }
 
   @override
@@ -96,7 +110,7 @@ void main() {
   });
 
   group('launchShuffledShow pre-flight guard', () {
-    testWidgets('returns PlayQueueError when metadata is not a show or season', (tester) async {
+    testWidgets('returns PlayQueueError when metadata is not a show, season or episode', (tester) async {
       // Build a launcher inside an active Element so its `context.mounted`
       // returns true. We don't need a Provider tree because the guard runs
       // before any context.read.
@@ -112,14 +126,59 @@ void main() {
 
       final launcher = PlexPlayQueueLauncher(context: capturedContext, client: _StubPlexClient());
       final result = await launcher.launchShuffledShow(
-        // movie is not show / season.
+        // movie is not show / season / episode.
         metadata: testMediaItem(id: 'rk1', backend: MediaBackend.plex, kind: MediaKind.movie),
         showLoadingIndicator: false,
       );
 
       expect(result, isA<PlayQueueError>());
       final error = (result as PlayQueueError).error;
-      expect(error.toString(), contains('shows and seasons'));
+      expect(error.toString(), contains('shows, seasons and episodes'));
+    });
+  });
+
+  group('launchShuffledShow from an episode', () {
+    testWidgets('shuffles the whole show of the episode', (tester) async {
+      final context = await _pumpContext(tester);
+      final head = const MediaItem.plex(id: 'ep-5', kind: MediaKind.episode, title: 'Episode', playQueueItemId: 41);
+      final client = _StubPlexClient(response: _queueWith(head, shuffled: true));
+      final navigated = <MediaItem>[];
+      final launcher = PlexPlayQueueLauncher(
+        context: context,
+        client: client,
+        playbackStateForTesting: PlaybackStateProvider(),
+        navigateForTesting: (selected) async => navigated.add(selected),
+      );
+
+      final result = await launcher.launchShuffledShow(
+        metadata: testMediaItem(
+          id: 'ep-1',
+          backend: MediaBackend.plex,
+          kind: MediaKind.episode,
+          parentId: 'season-2',
+          grandparentId: 'show-7',
+        ),
+        showLoadingIndicator: false,
+      );
+
+      expect(result, isA<PlayQueueSuccess>());
+      expect(client.createdShowQueues, [(showRatingKey: 'show-7', shuffle: 1)]);
+      expect(navigated.single.id, 'ep-5');
+    });
+
+    testWidgets('an episode without a show is an error, not a queue', (tester) async {
+      final context = await _pumpContext(tester);
+      final client = _StubPlexClient();
+      final launcher = PlexPlayQueueLauncher(context: context, client: client, navigateForTesting: (_) async {});
+
+      final result = await launcher.launchShuffledShow(
+        metadata: testMediaItem(id: 'ep-1', backend: MediaBackend.plex, kind: MediaKind.episode),
+        showLoadingIndicator: false,
+      );
+
+      expect(result, isA<PlayQueueError>());
+      expect((result as PlayQueueError).error.toString(), contains('grandparentRatingKey'));
+      expect(client.createdShowQueues, isEmpty);
     });
   });
 

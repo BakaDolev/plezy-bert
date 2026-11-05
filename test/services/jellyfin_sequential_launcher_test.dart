@@ -694,7 +694,7 @@ void main() {
       expect(navigated.single, same(playback.currentQueueItem));
     });
 
-    testWidgets('launchShuffledShow rejects non-show/season kinds', (tester) async {
+    testWidgets('launchShuffledShow rejects non-show/season/episode kinds', (tester) async {
       final ctx = await pumpContext(tester);
       final launcher = JellyfinSequentialLauncher(context: ctx);
 
@@ -703,7 +703,7 @@ void main() {
       final result = await launcher.launchShuffledShow(metadata: movie, showLoadingIndicator: false);
 
       expect(result, isA<PlayQueueError>());
-      expect((result as PlayQueueError).error.toString(), contains('shows and seasons'));
+      expect((result as PlayQueueError).error.toString(), contains('shows, seasons and episodes'));
     });
 
     testWidgets('launchShuffledShow rejects season missing parentId', (tester) async {
@@ -799,6 +799,49 @@ void main() {
 
       expect(result, isA<PlayQueueSuccess>());
       expect(fakeClient.fetchSeriesEpisodesCalls, ['show-7']);
+    });
+
+    testWidgets('launchShuffledShow on an episode uses grandparentId as series anchor', (tester) async {
+      final ctx = await pumpContext(tester);
+      final fakeClient = _RecordingJellyfinClient(seriesEpisodesResponse: [_ep('a'), _ep('b')]);
+
+      final launcher = JellyfinSequentialLauncher(
+        context: ctx,
+        clientForTesting: fakeClient,
+        playbackStateForTesting: PlaybackStateProvider(),
+        navigateForTesting: (_) async {},
+      );
+
+      final episode = testMediaItem(
+        id: 'ep-3',
+        backend: MediaBackend.jellyfin,
+        kind: MediaKind.episode,
+        serverId: 'srv-jf',
+        parentId: 'season-2',
+        grandparentId: 'show-7',
+      );
+
+      final result = await launcher.launchShuffledShow(metadata: episode, showLoadingIndicator: false);
+
+      expect(result, isA<PlayQueueSuccess>());
+      expect(fakeClient.fetchSeriesEpisodesCalls, ['show-7']);
+    });
+
+    testWidgets('launchShuffledShow rejects an episode missing grandparentId', (tester) async {
+      final ctx = await pumpContext(tester);
+      final launcher = JellyfinSequentialLauncher(context: ctx);
+
+      final episode = testMediaItem(
+        id: 'ep-3',
+        backend: MediaBackend.jellyfin,
+        kind: MediaKind.episode,
+        serverId: 'srv-jf',
+      );
+
+      final result = await launcher.launchShuffledShow(metadata: episode, showLoadingIndicator: false);
+
+      expect(result, isA<PlayQueueError>());
+      expect((result as PlayQueueError).error.toString(), contains('grandparentId'));
     });
 
     testWidgets('launchShuffledShow returns PlayQueueEmpty when series has no episodes', (tester) async {

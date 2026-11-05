@@ -150,7 +150,16 @@ Future<_ProfileActivationResult> _activateVerifiedProfile(BuildContext context, 
 /// profile-scoped screen (Discover's profile menu) outlives that screen,
 /// whose subtree the activation rebuilds, so the offline keep-active decision
 /// and the failure message must not depend on it staying mounted.
-Future<bool> switchProfileFromUi(BuildContext context, Profile profile) async {
+///
+/// [pinVerified]: the PIN was already checked without a dialog (a remote
+/// switch, `RemoteProfileSwitcher`), so activation goes straight on; a local
+/// profile still needs [verifiedPin] for its hash check.
+Future<bool> switchProfileFromUi(
+  BuildContext context,
+  Profile profile, {
+  bool pinVerified = false,
+  String? verifiedPin,
+}) async {
   final activeProvider = context.read<ActiveProfileProvider>();
   final binder = context.read<ActiveProfileBinder>();
   final database = context.read<AppDatabase>();
@@ -164,7 +173,9 @@ Future<bool> switchProfileFromUi(BuildContext context, Profile profile) async {
     }
   }
 
-  final activation = await _activateProfileWithPin(context, profile);
+  final activation = pinVerified
+      ? await _activateVerifiedProfile(context, profile, pin: profile.isLocal ? verifiedPin : null)
+      : await _activateProfileWithPin(context, profile);
   switch (activation.outcome) {
     case ProfileActivationOutcome.cancelled:
       return false;

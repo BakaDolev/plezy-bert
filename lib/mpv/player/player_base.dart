@@ -1404,14 +1404,14 @@ abstract class PlayerBase with PlayerStreamControllersMixin implements Player {
       'acompressor=threshold=-34dB:ratio=4:knee=6dB:attack=30:release=300:makeup=15dB:link=maximum,'
       'alimiter=limit=-3dB:attack=1:release=60:level=false';
 
-  /// [_androidNormalizationFilter] with 5 dB more makeup for Android TV
+  /// [_androidNormalizationFilter] with 7 dB more makeup for Android TV
   /// devices. With 15 dB the chain lands 5-8 dB under loudnorm's -14 LUFS
   /// (stereo dialogue about -19.5, 5.1 about -24, quieter still once a TV
-  /// folds 5.1 to its speakers); 20 dB brings stereo back to about -14.5 and
-  /// 5.1 to about -19, the limiter trimming peaks by 1.5-2.5 dB. Phones keep
-  /// the original chain.
+  /// folds 5.1 to its speakers); 22 dB brings stereo to about -12.8 and 5.1
+  /// to about -17.4 (loudnorm's own 5.1 level), the limiter holding true
+  /// peaks near -2 dBFS. Phones keep the original chain.
   static const String _androidTvNormalizationFilter =
-      'acompressor=threshold=-34dB:ratio=4:knee=6dB:attack=30:release=300:makeup=20dB:link=maximum,'
+      'acompressor=threshold=-34dB:ratio=4:knee=6dB:attack=30:release=300:makeup=22dB:link=maximum,'
       'alimiter=limit=-3dB:attack=1:release=60:level=false';
 
   /// The `af` chain for Normalize Loudness on this platform.

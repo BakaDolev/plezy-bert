@@ -21,6 +21,7 @@ import 'package:plezy/profiles/profile_registry.dart';
 import 'package:plezy/screens/profile/pin_entry_dialog.dart';
 import 'package:plezy/screens/profile/profile_detail_screen.dart';
 import 'package:plezy/screens/profile/profile_switch_screen.dart';
+import 'package:plezy/services/companion_remote/remote_profile_switch.dart';
 import 'package:plezy/services/deep_links/deep_link.dart';
 import 'package:plezy/services/storage_service.dart';
 import 'package:plezy/theme/mono_theme.dart';
@@ -88,6 +89,24 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
+  });
+
+  group('remote profile switch (fork)', () {
+    final profiles = [Profile.local(id: 'local-owner', displayName: 'Owner', createdAt: DateTime(2026, 1, 1))];
+
+    testWidgets('a must-choose picker takes remote switches while it is on screen', (tester) async {
+      addTearDown(RemoteProfileSwitcher.instance.debugReset);
+      await _pumpPicker(tester, profiles: profiles, connections: const [], requireSelection: true);
+      expect(RemoteProfileSwitcher.instance.isPickerShowing, isTrue);
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(RemoteProfileSwitcher.instance.isPickerShowing, isFalse, reason: 'closing the picker lets go');
+    });
+
+    testWidgets('the plain profile switcher does not', (tester) async {
+      addTearDown(RemoteProfileSwitcher.instance.debugReset);
+      await _pumpPicker(tester, profiles: profiles, connections: const []);
+      expect(RemoteProfileSwitcher.instance.isPickerShowing, isFalse);
+    });
   });
 
   testWidgets('orders profiles by recent usage from storage', (tester) async {
@@ -584,6 +603,7 @@ Future<void> _pumpPicker(
   String? activeProfileId,
   Map<String, DateTime> lastUsedAt = const {},
   bool settle = true,
+  bool requireSelection = false,
 }) async {
   final db = AppDatabase.forTesting(NativeDatabase.memory());
   final profileRegistry = _FakeProfileRegistry(db, profiles);
@@ -633,7 +653,10 @@ Future<void> _pumpPicker(
           Provider<PlexHomeService>.value(value: plexHome),
           ChangeNotifierProvider<ActiveProfileProvider>.value(value: activeProfile),
         ],
-        child: MaterialApp(theme: monoTheme(MonoPalette.dark), home: const ProfileSwitchScreen()),
+        child: MaterialApp(
+          theme: monoTheme(MonoPalette.dark),
+          home: ProfileSwitchScreen(requireSelection: requireSelection),
+        ),
       ),
     ),
   );

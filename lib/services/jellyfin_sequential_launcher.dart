@@ -150,8 +150,8 @@ class JellyfinSequentialLauncher extends MediaListPlaybackLauncher {
   @override
   Future<PlayQueueResult> launchShuffledShow({required MediaItem metadata, bool showLoadingIndicator = true}) async {
     final kind = metadata.kind;
-    if (kind != MediaKind.show && kind != MediaKind.season) {
-      return PlayQueueError(Exception('Shuffle play only works for shows and seasons'));
+    if (kind != MediaKind.show && kind != MediaKind.season && kind != MediaKind.episode) {
+      return PlayQueueError(Exception('Shuffle play only works for shows, seasons and episodes'));
     }
     final serverId = metadata.serverId;
     if (serverId == null) {
@@ -160,6 +160,12 @@ class JellyfinSequentialLauncher extends MediaListPlaybackLauncher {
     final String seriesId;
     if (kind == MediaKind.show) {
       seriesId = metadata.id;
+    } else if (kind == MediaKind.episode) {
+      final grandparent = metadata.grandparentId;
+      if (grandparent == null) {
+        return PlayQueueError(Exception('Episode is missing grandparentId'));
+      }
+      seriesId = grandparent;
     } else {
       final parent = metadata.parentId;
       if (parent == null) {

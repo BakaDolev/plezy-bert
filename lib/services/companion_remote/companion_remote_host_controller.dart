@@ -14,9 +14,13 @@ import '../../utils/app_logger.dart';
 ///
 /// Optional lifetime checks let an explicit settings mutation stop before a
 /// stale async resolution commits crypto or starts a replacement session.
-Future<bool> ensureCompanionRemoteCryptoFromContext(BuildContext context, {void Function()? checkCurrent}) async {
+Future<bool> ensureCompanionRemoteCryptoFromContext(
+  BuildContext context, {
+  void Function()? checkCurrent,
+  CompanionRemoteProvider? provider,
+}) async {
   checkCurrent?.call();
-  final companionRemote = context.read<CompanionRemoteProvider>();
+  final companionRemote = provider ?? context.read<CompanionRemoteProvider>();
   final connections = context.read<ConnectionRegistry>();
   final activeProfile = context.read<ActiveProfileProvider>();
   final profileConnections = context.read<ProfileConnectionRegistry>();
@@ -40,13 +44,21 @@ Future<bool> ensureCompanionRemoteCryptoFromContext(BuildContext context, {void 
   );
 }
 
-Future<bool> startCompanionRemoteHost(BuildContext context, {void Function()? checkCurrent}) async {
+/// [provider] defaults to the profile session's; the "must choose" profile
+/// picker passes its own (fork: remote profile switch).
+Future<bool> startCompanionRemoteHost(
+  BuildContext context, {
+  void Function()? checkCurrent,
+  CompanionRemoteProvider? provider,
+}) async {
   checkCurrent?.call();
-  final companionRemote = context.read<CompanionRemoteProvider>();
+  final companionRemote = provider ?? context.read<CompanionRemoteProvider>();
   if (companionRemote.isHostServerRunning) return true;
 
   try {
-    if (!await ensureCompanionRemoteCryptoFromContext(context, checkCurrent: checkCurrent)) return false;
+    if (!await ensureCompanionRemoteCryptoFromContext(context, checkCurrent: checkCurrent, provider: companionRemote)) {
+      return false;
+    }
     checkCurrent?.call();
 
     await companionRemote.startHostServer(checkCurrent: checkCurrent);

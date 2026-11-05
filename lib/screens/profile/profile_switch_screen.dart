@@ -15,7 +15,16 @@ import '../../profiles/profile_activation.dart';
 import '../../profiles/profile_avatar.dart';
 import '../../profiles/profile_connection.dart';
 import '../../profiles/profile_merge.dart';
+import '../../connection/connection_registry.dart';
+import '../../models/companion_remote/remote_command.dart';
+import '../../profiles/plex_home_service.dart';
+import '../../profiles/profile_connection_registry.dart';
+import '../../providers/companion_remote_provider.dart';
 import '../../services/app_exit_service.dart';
+import '../../services/companion_remote/companion_remote_host_controller.dart';
+import '../../services/companion_remote/remote_profile_switch.dart';
+import '../../services/settings_service.dart';
+import '../../utils/app_logger.dart';
 import '../../theme/mono_tokens.dart';
 import '../../widgets/app_icon.dart';
 import '../../widgets/app_menu.dart';
@@ -39,7 +48,13 @@ import 'profile_detail_screen.dart';
 class ProfileSwitchScreen extends StatefulWidget {
   final bool requireSelection;
 
-  const ProfileSwitchScreen({super.key, this.requireSelection = false});
+  /// Fork: run a restricted Companion Remote host while this picker is up, so
+  /// a remote can switch to its profile (only `switchProfile` is handled). Set
+  /// by SetupScreen at a cold start, when no profile session (and so no other
+  /// host) exists.
+  final bool hostRemote;
+
+  const ProfileSwitchScreen({super.key, this.requireSelection = false, this.hostRemote = false});
 
   @override
   State<ProfileSwitchScreen> createState() => _ProfileSwitchScreenState();
@@ -51,9 +66,72 @@ class _ProfileSwitchScreenState extends State<ProfileSwitchScreen> with MountedS
   final Map<String, FocusNode> _profileMenuFocusNodes = {};
   final Map<String, GlobalKey<AppMenuButtonState<_TileAction>>> _profileMenuKeys = {};
   bool _switching = false;
+  CompanionRemoteProvider? _remoteHost;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.requireSelection) {
+      // A verified remote switch goes through this picker, which pops itself
+      // as after a tap.
+      RemoteProfileSwitcher.instance.attachPicker(
+        this,
+        (profile, pin) => _switchTo(profile, remote: true, remotePin: pin),
+      );
+    }
+    if (widget.hostRemote) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_startRemoteHost()));
+    }
+  }
+
+  Future<void> _startRemoteHost() async {
+    final settings = await SettingsService.getInstance();
+    if (!mounted || !settings.read(SettingsService.enableCompanionRemoteServer)) return;
+    final activeProfile = context.read<ActiveProfileProvider>();
+    final host = CompanionRemoteProvider()
+      ..bindProfileServices(
+        connections: context.read<ConnectionRegistry>(),
+        activeProfile: activeProfile,
+        profileConnections: context.read<ProfileConnectionRegistry>(),
+        plexHome: context.read<PlexHomeService>(),
+      );
+    host.hostStateExtras = () => RemoteProfileSwitcher.instance.hostState(activeProfile);
+    host.onCommandReceived = (command) {
+      if (command.type != RemoteCommandType.switchProfile) return;
+      unawaited(
+        RemoteProfileSwitcher.instance.handle(
+          command.data,
+          reply: (result) => host.sendCommand(RemoteCommandType.switchProfileResult, data: result),
+        ),
+      );
+    };
+    _remoteHost = host;
+    final started = await startCompanionRemoteHost(context, provider: host);
+    if (!started) appLogger.i('Profile picker: remote host not started');
+    if (!mounted || !identical(_remoteHost, host)) await _stopHost(host);
+  }
+
+  /// Stops the picker's host before the profile session starts its own (a
+  /// second server on the port would fall back to a random one).
+  Future<void> _stopRemoteHost() async {
+    final host = _remoteHost;
+    _remoteHost = null;
+    if (host != null) await _stopHost(host);
+  }
+
+  Future<void> _stopHost(CompanionRemoteProvider host) async {
+    try {
+      await host.stopHostServer();
+    } catch (e) {
+      appLogger.w('Profile picker: stopping the remote host failed', error: e);
+    }
+    host.dispose();
+  }
 
   @override
   void dispose() {
+    RemoteProfileSwitcher.instance.detachPicker(this);
+    unawaited(_stopRemoteHost());
     for (final node in _profileFocusNodes.values) {
       node.dispose();
     }
@@ -405,17 +483,21 @@ class _ProfileSwitchScreenState extends State<ProfileSwitchScreen> with MountedS
     await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const AddLocalProfileScreen()));
   }
 
-  Future<void> _switchTo(Profile profile) async {
-    if (_switching) return;
+  /// [remote]: a remote switch whose PIN `RemoteProfileSwitcher` already
+  /// checked without a dialog (fork; [remotePin] is that PIN, for a local
+  /// profile's hash check). A tap gets the PIN dialog as before.
+  Future<bool> _switchTo(Profile profile, {bool remote = false, String? remotePin}) async {
+    if (_switching) return false;
     setState(() => _switching = true);
     try {
       final route = ModalRoute.of(context);
       final navigator = Navigator.of(context, rootNavigator: true);
-      final switched = await switchProfileFromUi(context, profile);
-      if (!mounted || !switched) return;
+      final switched = await switchProfileFromUi(context, profile, pinVerified: remote, verifiedPin: remotePin);
+      if (!mounted || !switched) return false;
       if (widget.requireSelection) {
         setState(() => _allowPop = true);
       }
+      await _stopRemoteHost();
       // Pop only when this screen is still the top route. A blind
       // `navigator.pop(true)` after the unbounded switch-await pops
       // whatever is topmost — it can dismiss a confirmation dialog WITH
@@ -423,6 +505,7 @@ class _ProfileSwitchScreenState extends State<ProfileSwitchScreen> with MountedS
       if (route != null && route.isCurrent) {
         navigator.pop(true);
       }
+      return true;
     } finally {
       setStateIfMounted(() => _switching = false);
     }

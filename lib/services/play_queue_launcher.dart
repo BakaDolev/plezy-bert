@@ -178,13 +178,14 @@ class PlexPlayQueueLauncher extends MediaListPlaybackLauncher {
     );
   }
 
-  /// Launch shuffled playback for a show or season.
+  /// Launch shuffled playback of a whole show, from the show, one of its
+  /// seasons or one of its episodes.
   @override
   Future<PlayQueueResult> launchShuffledShow({required MediaItem metadata, bool showLoadingIndicator = true}) async {
     final kind = metadata.kind;
 
-    if (kind != MediaKind.show && kind != MediaKind.season) {
-      return PlayQueueError(Exception('Shuffle play only works for shows and seasons'));
+    if (kind != MediaKind.show && kind != MediaKind.season && kind != MediaKind.episode) {
+      return PlayQueueError(Exception('Shuffle play only works for shows, seasons and episodes'));
     }
 
     final abort = AbortController();
@@ -199,6 +200,12 @@ class PlexPlayQueueLauncher extends MediaListPlaybackLauncher {
         String showRatingKey;
         if (kind == MediaKind.show) {
           showRatingKey = metadata.id;
+        } else if (kind == MediaKind.episode) {
+          // For episodes, the show is the grandparent
+          if (metadata.grandparentId == null) {
+            throw Exception('Episode is missing grandparentRatingKey');
+          }
+          showRatingKey = metadata.grandparentId!;
         } else {
           // For seasons, we need the show's rating key
           if (metadata.parentId == null) {

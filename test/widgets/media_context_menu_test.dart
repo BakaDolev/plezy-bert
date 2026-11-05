@@ -433,6 +433,63 @@ void main() {
     });
   });
 
+  group('MediaContextMenu Shuffle Series', () {
+    Future<void> openFor(WidgetTester tester, MediaItem item, {bool isOffline = false}) async {
+      final menuKey = await _pumpJellyfinItemMenu(
+        tester,
+        isAdministrator: false,
+        item: item,
+        isOffline: isOffline,
+        handler: _deleteFlowHandler(
+          episodes: [_episodeJson(id: 'ep-2', index: 2, path: '/tv/bb/S01E02.mkv')],
+        ),
+      );
+      await _openMenu(tester, menuKey);
+    }
+
+    testWidgets('an episode offers Shuffle Series for its show', (tester) async {
+      await openFor(tester, _episode(id: 'ep-2', index: 2));
+      expect(find.text(t.mediaMenu.shuffleSeries), findsOneWidget);
+      expect(find.text(t.mediaMenu.shufflePlay), findsNothing);
+    });
+
+    testWidgets('an episode with no show does not offer it', (tester) async {
+      await openFor(
+        tester,
+        testMediaItem(id: 'ep-9', backend: MediaBackend.jellyfin, kind: MediaKind.episode, serverId: 'srv-1'),
+      );
+      expect(find.text(t.mediaMenu.shuffleSeries), findsNothing);
+    });
+
+    testWidgets('a downloaded episode viewed offline does not offer it', (tester) async {
+      await openFor(tester, _episode(id: 'ep-2', index: 2), isOffline: true);
+      expect(find.text(t.mediaMenu.shuffleSeries), findsNothing);
+    });
+
+    testWidgets('shows and seasons say Shuffle Series too', (tester) async {
+      await openFor(
+        tester,
+        testMediaItem(
+          id: 'season-1',
+          backend: MediaBackend.jellyfin,
+          kind: MediaKind.season,
+          parentId: 'show-1',
+          serverId: 'srv-1',
+        ),
+      );
+      expect(find.text(t.mediaMenu.shuffleSeries), findsOneWidget);
+      expect(find.text(t.mediaMenu.shufflePlay), findsNothing);
+    });
+
+    testWidgets('a movie does not offer it', (tester) async {
+      await openFor(
+        tester,
+        testMediaItem(id: 'movie-1', backend: MediaBackend.jellyfin, kind: MediaKind.movie, serverId: 'srv-1'),
+      );
+      expect(find.text(t.mediaMenu.shuffleSeries), findsNothing);
+    });
+  });
+
   group('MediaContextMenu delete confirmation', () {
     testWidgets('names the episode, never the show, at every step (issue #1781)', (tester) async {
       final menuKey = await _pumpJellyfinItemMenu(
@@ -2001,6 +2058,7 @@ Future<GlobalKey<MediaContextMenuState>> _pumpJellyfinItemMenu(
   required Future<http.Response> Function(http.Request request) handler,
   required MediaItem item,
   bool serverOnline = true,
+  bool isOffline = false,
   List<Uri>? requests,
   Set<String> suppressedActions = const {},
 
@@ -2038,6 +2096,7 @@ Future<GlobalKey<MediaContextMenuState>> _pumpJellyfinItemMenu(
         key: menuKey,
         item: item,
         suppressedActions: suppressedActions,
+        isOffline: isOffline,
         child: const SizedBox(width: 120, height: 80, child: Text('delete target')),
       ),
     ),

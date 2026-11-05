@@ -27,6 +27,16 @@ const List<ChangelogSection> forkChangelog = [
     entries: [
       ChangelogEntry(
         date: '2026-11-05',
+        title: '1.0.3 (beta): Shuffle Series, faster start on the PC',
+        changes: [
+          "Long-press an episode to Shuffle Series: it shuffles that episode's whole show. Shows and seasons call it Shuffle Series now too (it was Shuffle Play).",
+          'On the PC, Plezy no longer sits on "Connecting to servers" while it checks for leftover downloads; it waits at most a second.',
+          'On Android TVs, Normalize Loudness is a little louder again (about 2 dB more than 1.0.2).',
+          "For voice control: the remote can switch Plezy to another profile, checking that profile's PIN with Plex. It also works from the profile picker at startup.",
+        ],
+      ),
+      ChangelogEntry(
+        date: '2026-11-05',
         title: '1.0.2 (beta): louder Normalize Loudness on TVs',
         changes: [
           'On Android TVs, Normalize Loudness is about 5 dB louder again: the lighter leveller from Plezy 2.25 started fast but played too quietly through TV speakers. Phones and PCs are unchanged.',

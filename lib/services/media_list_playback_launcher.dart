@@ -71,7 +71,8 @@ abstract class MediaListPlaybackLauncher {
     bool showLoadingIndicator = true,
   });
 
-  /// Launch shuffled playback for a show or season. Plex builds a server-side
+  /// Launch shuffled playback of a whole show, given the show, a season or an
+  /// episode. Plex builds a server-side
   /// `/playQueues` with `shuffle=1`; MediaBrowser fetches the full episode
   /// list via `fetchClientSideEpisodeQueue`, shuffles locally, and publishes
   /// through `setPlaybackFromLocalQueue` (same path as the sequential queue

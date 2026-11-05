@@ -690,8 +690,13 @@ class MediaContextMenuState extends State<MediaContextMenu> {
           !widget.isInContinueWatching &&
           ancestorSeriesKey != itemSeriesKey)
         _MenuAction(value: 'series', icon: Symbols.tv_rounded, label: t.mediaMenu.goToSeries),
-      if (mediaKind == MediaKind.show || mediaKind == MediaKind.season)
-        _MenuAction(value: 'shuffle_play', icon: Symbols.shuffle_rounded, label: t.mediaMenu.shufflePlay),
+      // Shuffle the whole series, also from one of its episodes (Continue
+      // Watching, a season's episode list). Episodes need the server, so a
+      // downloaded episode doesn't offer it.
+      if (mediaKind == MediaKind.show ||
+          mediaKind == MediaKind.season ||
+          (mediaKind == MediaKind.episode && mediaItem.grandparentId != null && !widget.isOffline))
+        _MenuAction(value: 'shuffle_play', icon: Symbols.shuffle_rounded, label: t.mediaMenu.shuffleSeries),
       if (canLinkItem(mediaItem))
         _MenuAction(value: 'show_link', icon: Symbols.link_rounded, label: t.deepLinks.showLink),
       ..._mediaSourceMenuActions(menu, mediaItem),

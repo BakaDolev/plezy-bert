@@ -2022,6 +2022,9 @@ class Translations$mediaMenu$en {
 	/// en: 'Shuffle Play'
 	String get shufflePlay => 'Shuffle Play';
 
+	/// en: 'Shuffle Series'
+	String get shuffleSeries => 'Shuffle Series';
+
 	/// en: 'Shuffle not available offline'
 	String get shuffleNotAvailableOffline => 'Shuffle not available offline';
 
@@ -5139,6 +5142,9 @@ class Translations$companionRemote$en {
 
 	/// en: 'Unknown Device'
 	String get unknownDevice => 'Unknown Device';
+
+	/// en: 'Remote profile switching is locked for a while after wrong PINs'
+	String get profileSwitchLocked => 'Remote profile switching is locked for a while after wrong PINs';
 
 	late final Translations$companionRemote$session$en session = Translations$companionRemote$session$en.internal(_root);
 	late final Translations$companionRemote$pairing$en pairing = Translations$companionRemote$pairing$en.internal(_root);
@@ -8856,6 +8862,7 @@ extension on Translations {
 			'mediaMenu.viewDetails' => 'View details',
 			'mediaMenu.goToSeries' => 'Go to series',
 			'mediaMenu.shufflePlay' => 'Shuffle Play',
+			'mediaMenu.shuffleSeries' => 'Shuffle Series',
 			'mediaMenu.shuffleNotAvailableOffline' => 'Shuffle not available offline',
 			'mediaMenu.fileInfo' => 'File Info',
 			'mediaMenu.deleteEpisodeFromServer' => 'Delete episode from server',
@@ -9189,9 +9196,9 @@ extension on Translations {
 			'profiles.newProfile' => 'New profile',
 			'profiles.profileNameHint' => 'e.g. Guests, Kids, Family Room',
 			'profiles.pinProtectionOptional' => 'PIN protection (optional)',
-			'profiles.pinExplain' => '4-digit PIN required to switch profiles.',
 			_ => null,
 		} ?? switch (path) {
+			'profiles.pinExplain' => '4-digit PIN required to switch profiles.',
 			'profiles.continueButton' => 'Continue',
 			'profiles.pinsDontMatch' => 'PINs don\'t match',
 			'profiles.tokenIdentityMismatch' => 'The Plex profile token resolved to an unexpected server',
@@ -9703,9 +9710,9 @@ extension on Translations {
 			'liveTv.recordingCancelled' => 'Recording canceled',
 			'liveTv.recordingRuleDeleted' => 'Recording rule deleted',
 			'liveTv.processRecordingRules' => 'Re-evaluate rules',
-			'liveTv.recordingInProgress' => 'Recording now',
 			_ => null,
 		} ?? switch (path) {
+			'liveTv.recordingInProgress' => 'Recording now',
 			'liveTv.recordingsCount' => ({required Object count}) => '${count} scheduled',
 			'liveTv.editRule' => 'Edit rule',
 			'liveTv.editRuleAction' => 'Edit',
@@ -10097,6 +10104,7 @@ extension on Translations {
 			'companionRemote.title' => 'Companion Remote',
 			'companionRemote.connectedTo' => ({required Object name}) => 'Connected to ${name}',
 			'companionRemote.unknownDevice' => 'Unknown Device',
+			'companionRemote.profileSwitchLocked' => 'Remote profile switching is locked for a while after wrong PINs',
 			'companionRemote.session.startingServer' => 'Starting remote server...',
 			'companionRemote.session.hostAddress' => 'Host Address',
 			'companionRemote.session.connected' => 'Connected',
@@ -10216,10 +10224,10 @@ extension on Translations {
 			'performanceOverlay.dropped' => 'Dropped',
 			'performanceOverlay.dvRpus' => 'DV RPUs',
 			'performanceOverlay.dvRpuAverage' => 'DV RPU Avg',
-			'performanceOverlay.dvSampleAverage' => 'DV Sample Avg',
-			'performanceOverlay.maxLuma' => 'Max Luma',
 			_ => null,
 		} ?? switch (path) {
+			'performanceOverlay.dvSampleAverage' => 'DV Sample Avg',
+			'performanceOverlay.maxLuma' => 'Max Luma',
 			'performanceOverlay.minLuma' => 'Min Luma',
 			'performanceOverlay.maxCll' => 'MaxCLL',
 			'performanceOverlay.maxFall' => 'MaxFALL',

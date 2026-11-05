@@ -728,6 +728,7 @@
     "viewDetails": "View details",
     "goToSeries": "Go to series",
     "shufflePlay": "Shuffle Play",
+    "shuffleSeries": "Shuffle Series",
     "shuffleNotAvailableOffline": "Shuffle not available offline",
     "fileInfo": "File Info",
     "deleteEpisodeFromServer": "Delete episode from server",
@@ -2128,6 +2129,7 @@
     "title": "Companion Remote",
     "connectedTo": "Connected to ${name}",
     "unknownDevice": "Unknown Device",
+    "profileSwitchLocked": "Remote profile switching is locked for a while after wrong PINs",
     "session": {
       "startingServer": "Starting remote server...",
       "hostAddress": "Host Address",

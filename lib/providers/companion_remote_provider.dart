@@ -898,7 +898,12 @@ class CompanionRemoteProvider with ChangeNotifier, DisposableChangeNotifierMixin
       // browse controls over a running player, or the player controls after
       // it closed while the remote was away.
       if (isHost) {
-        peer.sendCommand(RemoteCommand(type: RemoteCommandType.syncState, data: {'playerActive': _hostPlayerActive}));
+        peer.sendCommand(
+          RemoteCommand(
+            type: RemoteCommandType.syncState,
+            data: {'playerActive': _hostPlayerActive, ...?hostStateExtras?.call()},
+          ),
+        );
       }
     });
 
@@ -994,8 +999,16 @@ class CompanionRemoteProvider with ChangeNotifier, DisposableChangeNotifierMixin
   void setHostPlayerActive(bool active) {
     _hostPlayerActive = active;
     if (_peerService == null || !isConnected) return;
-    sendCommand(RemoteCommandType.syncState, data: {'playerActive': active});
+    sendCommand(RemoteCommandType.syncState, data: {'playerActive': active, ...?hostStateExtras?.call()});
   }
+
+  /// Fork: extra host state merged into the host's own `syncState` frames
+  /// (the active profile and whether it is ready, `RemoteProfileSwitcher`).
+  Map<String, Object?> Function()? hostStateExtras;
+
+  /// Fork: send the host's `syncState` again, e.g. once the profile's
+  /// binding settled.
+  void resendHostState() => setHostPlayerActive(_hostPlayerActive);
 
   void sendCommand(RemoteCommandType type, {Map<String, dynamic>? data}) {
     if (_peerService == null || !isConnected) {

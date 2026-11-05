@@ -68,6 +68,10 @@ enum RemoteCommandType {
   setSecondarySubtitleTrack,
   setZoom,
   setFullscreen,
+  // Fork: switch the host to another profile (55); the host answers with
+  // switchProfileResult (56). COMPANION_PROTOCOL.md §4b.
+  switchProfile,
+  switchProfileResult,
 }
 
 class _RemoteCommandTypeConverter extends IndexedEnumConverter<RemoteCommandType> {

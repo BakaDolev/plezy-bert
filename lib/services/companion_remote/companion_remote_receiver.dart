@@ -63,6 +63,10 @@ class CompanionRemoteReceiver {
   VoidCallback? onFullscreen;
   void Function(bool enabled)? onSetFullscreen;
 
+  /// Fork: `switchProfile` (55), handled at the app root by
+  /// RemoteProfileSwitcher; the payload carries the PIN, so never log it.
+  void Function(Map<String, dynamic> data)? onSwitchProfile;
+
   /// Called after any command that could have changed playback state, so the
   /// active player can push a fresh state frame instead of leaving the
   /// controller to wait out the 5s heartbeat. Set only while a player owns the
@@ -214,6 +218,8 @@ class CompanionRemoteReceiver {
         // app's own FullscreenStateManager — no focus grab, no accidental flip.
         final enabled = command.data?['enabled'] as bool?;
         if (enabled != null) onSetFullscreen?.call(enabled);
+      case RemoteCommandType.switchProfile:
+        onSwitchProfile?.call(command.data ?? const {});
 
       case RemoteCommandType.fullscreen:
         if (onFullscreen != null) {
@@ -230,6 +236,7 @@ class CompanionRemoteReceiver {
       case RemoteCommandType.deviceInfo:
       case RemoteCommandType.disconnect:
       case RemoteCommandType.syncState:
+      case RemoteCommandType.switchProfileResult:
         return;
 
       default:
@@ -272,7 +279,9 @@ bool _isViewerInput(RemoteCommandType type) => switch (type) {
   RemoteCommandType.ack ||
   RemoteCommandType.deviceInfo ||
   RemoteCommandType.disconnect ||
-  RemoteCommandType.syncState => false,
+  RemoteCommandType.syncState ||
+  RemoteCommandType.switchProfile ||
+  RemoteCommandType.switchProfileResult => false,
   RemoteCommandType.dpadUp ||
   RemoteCommandType.dpadDown ||
   RemoteCommandType.dpadLeft ||

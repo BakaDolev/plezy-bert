@@ -18,9 +18,9 @@ void main() {
     test('Android TV devices get 5 dB more makeup and the same limiter', () {
       final phone = PlayerBase.normalizationFilterFor(isAndroid: true, isTvDevice: false);
       final tv = PlayerBase.normalizationFilterFor(isAndroid: true, isTvDevice: true);
-      expect(tv, contains('makeup=20dB'));
+      expect(tv, contains('makeup=22dB'));
       expect(tv, contains('alimiter=limit=-3dB'));
-      expect(tv.replaceFirst('makeup=20dB', 'makeup=15dB'), phone);
+      expect(tv.replaceFirst('makeup=22dB', 'makeup=15dB'), phone);
     });
 
     test('a TV flag outside Android changes nothing', () {
