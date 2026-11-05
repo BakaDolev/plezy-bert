@@ -27,6 +27,13 @@ const List<ChangelogSection> forkChangelog = [
     entries: [
       ChangelogEntry(
         date: '2026-11-05',
+        title: '1.0.2 (beta): louder Normalize Loudness on TVs',
+        changes: [
+          'On Android TVs, Normalize Loudness is about 5 dB louder again: the lighter leveller from Plezy 2.25 started fast but played too quietly through TV speakers. Phones and PCs are unchanged.',
+        ],
+      ),
+      ChangelogEntry(
+        date: '2026-11-05',
         title: '1.0.1 (beta): caught up to Plezy 2.25',
         changes: [
           'Rebuilt on the latest Plezy (2.25 and the fixes after it, up two releases from 2.23.0) with every fork feature replayed on top.',
