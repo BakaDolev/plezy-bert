@@ -17,6 +17,11 @@ class _OverlaySheetEntry {
   final Completer<dynamic> completer;
   final FocusNode? initialFocusNode;
 
+  /// Where the page's own content would like the remote to start, offered
+  /// through [OverlaySheetController.offerInitialFocus]. Used when the caller
+  /// passed no [initialFocusNode].
+  FocusNode? offeredFocusNode;
+
   _OverlaySheetEntry({required this.builder, required this.completer, this.initialFocusNode});
 }
 
@@ -103,6 +108,19 @@ class OverlaySheetController {
   void refocus() {
     _state._autoFocus(clearSelectSuppression: false);
   }
+
+  /// Offer [node] as where the remote starts on the current page.
+  ///
+  /// The sheet otherwise focuses its first focusable descendant, and that
+  /// order is the order focus nodes were attached, not screen order: a lazy
+  /// list builds its rows during layout, after a footer built beside it, so
+  /// the footer would win. The first offer per page is kept, so the leading
+  /// column of a split sheet keeps the remote. An explicit `initialFocusNode`
+  /// passed to [show] or [push] still takes precedence.
+  void offerInitialFocus(FocusNode node) => _state._offerInitialFocus(node);
+
+  /// Withdraw an earlier [offerInitialFocus], e.g. when its owner is disposed.
+  void withdrawInitialFocus(FocusNode node) => _state._withdrawInitialFocus(node);
 
   /// Absolute height ceiling for resizable desktop windows. Without it a 4K
   /// window yields a 1620px sheet, which reads as a wall of list rather than a
@@ -411,6 +429,17 @@ class _OverlaySheetHostState extends State<OverlaySheetHost> with SingleTickerPr
     return completer.future;
   }
 
+  void _offerInitialFocus(FocusNode node) {
+    if (_pageStack.isEmpty) return;
+    _pageStack.last.offeredFocusNode ??= node;
+  }
+
+  void _withdrawInitialFocus(FocusNode node) {
+    for (final entry in _pageStack) {
+      if (entry.offeredFocusNode == node) entry.offeredFocusNode = null;
+    }
+  }
+
   Future<T?> _push<T>({required WidgetBuilder builder, FocusNode? initialFocusNode}) {
     if (!_isOpen || _isClosing) {
       return Future.value(null);
@@ -493,10 +522,11 @@ class _OverlaySheetHostState extends State<OverlaySheetHost> with SingleTickerPr
       if (!focusDescendant) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_isOpen) return;
-        // If the current top entry has an initialFocusNode that is attached,
-        // focus that instead of the first descendant.
+        // If the current top entry has an initialFocusNode (or its content
+        // offered one) that is attached, focus that instead of the first
+        // descendant.
         final topEntry = _pageStack.isNotEmpty ? _pageStack.last : null;
-        final initialNode = topEntry?.initialFocusNode;
+        final initialNode = topEntry?.initialFocusNode ?? topEntry?.offeredFocusNode;
         if (initialNode != null && initialNode.context != null) {
           initialNode.requestFocus();
         } else {

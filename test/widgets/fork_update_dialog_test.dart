@@ -103,7 +103,7 @@ void main() {
 
   testWidgets('offers the build with its notes, Install in focus', (tester) async {
     await open(tester, isSamsung: true);
-    expect(find.text('Plezy Fork 0.0.2 (beta) is ready to install.'), findsOneWidget);
+    expect(find.text('Plezy Fork 0.0.2 is ready to install.'), findsOneWidget);
     expect(find.text('Fixed the thing.'), findsOneWidget);
     expect(find.textContaining('Auto Blocker'), findsOneWidget);
     expectFocusOn(tester, 'Install', notOn: ['Later', 'Skip this version']);

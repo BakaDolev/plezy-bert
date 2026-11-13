@@ -719,6 +719,54 @@ void main() {
         expect(toggles, 0, reason: 'a remote OK reveals the UI; it must not pause on the way (the reported bug)');
       },
     );
+
+    // The prompt fades after 7 s while auto-skip is off. The intro is still
+    // running, so the OK that brings the chrome back is almost always a late
+    // "skip": it must land on Skip, not Play/Pause two presses away.
+    Future<void> missThePrompt(WidgetTester tester) async {
+      InputModeTracker.reportNonPointerInput();
+      player.emitPosition(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
+      expect(focusLabel(), 'SkipMarkerButton', reason: 'precondition: TV autofocuses the prompt');
+      await tester.pump(const Duration(seconds: 8));
+      await tester.pumpAndSettle();
+      expect(find.byType(SkipMarkerButton), findsNothing, reason: 'precondition: the prompt faded');
+    }
+
+    playerTest(
+      'OK after a missed prompt reveals the controls with Skip focused',
+      markers: [MediaMarker(id: 1, type: 'intro', startTimeOffset: 10000, endTimeOffset: 45000)],
+      (tester) async {
+        await missThePrompt(tester);
+
+        await press(tester, LogicalKeyboardKey.select);
+
+        expect(chrome.controlsVisible, isTrue);
+        expect(find.byType(SkipMarkerButton), findsOneWidget, reason: 'the button returns with the chrome');
+        expect(focusLabel(), 'SkipMarkerButton', reason: 'the intro is still running, so Skip is the likely ask');
+        expect(toggles, 0);
+
+        await press(tester, LogicalKeyboardKey.select);
+
+        expect(player.state.position, const Duration(seconds: 45), reason: 'the second OK skips');
+      },
+    );
+
+    playerTest(
+      'Down from that Skip goes straight to Play/Pause, and Up from there to the timeline',
+      markers: [MediaMarker(id: 1, type: 'intro', startTimeOffset: 10000, endTimeOffset: 45000)],
+      (tester) async {
+        await missThePrompt(tester);
+        await press(tester, LogicalKeyboardKey.select);
+        expect(focusLabel(), 'SkipMarkerButton', reason: 'precondition');
+
+        await press(tester, LogicalKeyboardKey.arrowDown);
+        expect(focusLabel(), 'PlayPause');
+
+        await press(tester, LogicalKeyboardKey.arrowUp);
+        expect(focusLabel(), 'Timeline');
+      },
+    );
   });
 }
 

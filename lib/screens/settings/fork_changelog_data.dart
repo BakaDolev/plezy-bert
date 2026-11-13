@@ -26,6 +26,25 @@ const List<ChangelogSection> forkChangelog = [
     subtitle: 'What the voice-control fork adds on top of Plezy',
     entries: [
       ChangelogEntry(
+        date: '2026-11-13',
+        title: '2.0.2: damaged files, the PC window, TV menus',
+        changes: [
+          'A damaged video file no longer freezes the player: the controls keep working through the broken part, and picture and sound line up again by themselves afterwards.',
+          'On the PC, the window keeps its size when Plezy opens on a second monitor with a different scale (it got a fifth smaller at every launch).',
+          'On TVs, if the Skip Intro or Skip Credits button has faded, OK brings the controls back with Skip selected; Down goes to Pause.',
+          'On TVs, the subtitle menu opens with your current subtitle selected and the list shown from the top, instead of on Search Subtitles.',
+          'About → Changelog now lists 2.0.0, and version numbers no longer say "(beta)".',
+        ],
+      ),
+      ChangelogEntry(
+        date: '2026-11-05',
+        title: '2.0.0: the first full release on Plezy 2.25',
+        changes: [
+          'Everything in 1.0.1 to 1.0.3 below, as a full release for every device.',
+          'Versions from now on: the first number for big things or a move onto a new Plezy, the second for a good new feature, the last for bug fixes.',
+        ],
+      ),
+      ChangelogEntry(
         date: '2026-11-05',
         title: '1.0.3 (beta): Shuffle Series, faster start on the PC',
         changes: [

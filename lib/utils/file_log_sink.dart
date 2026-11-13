@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,7 +13,9 @@ import 'dart:io';
 /// * **Writes are synchronous.** A buffered `IOSink` or a background isolate
 ///   holds the tail of the log in Dart-side memory, which dies with the
 ///   process — exactly the case this file exists to capture. A sync write hands
-///   the bytes to the OS, which outlives the process.
+///   the bytes to the OS, which outlives the process. Forcing them on to the
+///   disk (`flushSync`) is what costs, so that happens at most once per
+///   [flushInterval], never per line.
 /// * **Nothing here may throw.** This instruments the app; it must never be the
 ///   reason the app fails. Every failure path degrades to "no file" and returns.
 class FileLogSink {
@@ -20,6 +23,7 @@ class FileLogSink {
     this.maxSessionFiles = 10,
     this.maxBytesPerFile = 10 * 1024 * 1024,
     this.maxBufferedLines = 2000,
+    this.flushInterval = const Duration(seconds: 1),
   });
 
   /// The app-wide sink. Inert until [start] resolves a directory.
@@ -35,6 +39,14 @@ class FileLogSink {
   /// Cap on lines held while waiting for [start].
   final int maxBufferedLines;
 
+  /// Longest a written line waits before the file is flushed to disk. Each
+  /// line already reaches the OS when it is written, so this only bounds how
+  /// stale the size Windows reports for the open file can get (and what an OS
+  /// crash, not an app crash, could lose). A flush per line cost ~3.4 ms on
+  /// Windows, which froze the player while a damaged file logged hundreds of
+  /// decoder errors a second.
+  final Duration flushInterval;
+
   static const String _filePrefix = 'plezy-';
   static const String _fileSuffix = '.log';
 
@@ -48,9 +60,15 @@ class FileLogSink {
   RandomAccessFile? _handle;
   int _bytesWritten = 0;
   bool _started = false;
+  bool _dirty = false;
+  Timer? _flushTimer;
+  int _flushCount = 0;
 
   /// Whether lines are currently reaching a file.
   bool get isActive => _handle != null;
+
+  /// Timed disk flushes so far; for tests.
+  int get flushCount => _flushCount;
 
   /// Begin writing into [directory] as [fileName].
   ///
@@ -120,6 +138,7 @@ class FileLogSink {
 
   /// Flush and release the file handle.
   Future<void> close() async {
+    _cancelFlushTimer();
     final handle = _handle;
     _handle = null;
     _file = null;
@@ -144,17 +163,37 @@ class FileLogSink {
         if (_handle == null) return;
       }
       _handle!.writeFromSync(bytes);
-      // Windows does not update the directory entry while a handle is open, so
-      // without this the file reads 0 bytes in Explorer for the whole session
-      // and looks broken. Flushing also tightens crash durability. Measured
-      // volume is ~1-2 lines/second, so the syscall is not worth avoiding.
-      _handle!.flushSync();
       _bytesWritten += bytes.length;
+      _dirty = true;
+      _flushTimer ??= Timer(flushInterval, _flushPending);
     } catch (_) {
       // A dead handle (disk full, file removed underneath us) must not take
       // the app with it. Stop writing and stay quiet.
       _closeQuietly();
     }
+  }
+
+  /// Windows does not update the directory entry while a handle is open, so
+  /// without a flush the file reads 0 bytes in Explorer for the whole session
+  /// and looks broken. Runs at most once per [flushInterval] while lines
+  /// arrive.
+  void _flushPending() {
+    _flushTimer = null;
+    final handle = _handle;
+    if (handle == null || !_dirty) return;
+    _dirty = false;
+    try {
+      handle.flushSync();
+      _flushCount++;
+    } catch (_) {
+      _closeQuietly();
+    }
+  }
+
+  void _cancelFlushTimer() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _dirty = false;
   }
 
   /// Move the live file aside and start a fresh one.
@@ -214,6 +253,7 @@ class FileLogSink {
   }
 
   void _closeQuietly() {
+    _cancelFlushTimer();
     final handle = _handle;
     _handle = null;
     _file = null;

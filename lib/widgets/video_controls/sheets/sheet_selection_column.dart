@@ -12,6 +12,11 @@ abstract class SheetSelectionColumnScope {
   /// initial scroll can measure a real item height.
   Key? keyFor(int index);
 
+  /// Focus node for the row at [index]. Only the current row (the first row
+  /// when nothing is current) gets one: it is where the remote starts when the
+  /// sheet opens.
+  FocusNode? focusNodeFor(int index);
+
   /// Runs an async selection: re-entrant taps are ignored while one is in
   /// flight, a progress bar is shown meanwhile, and the sheet is closed once
   /// [action] completes.
@@ -19,8 +24,10 @@ abstract class SheetSelectionColumnScope {
 }
 
 /// Shared scaffold for the selectable columns inside the video control sheets:
-/// an optional header, a one-shot scroll to the selected row, the async
-/// selection guard, the scrolling list, and an optional footer.
+/// an optional header, a one-shot scroll that reveals the selected row (only as
+/// far as needed, so the rows above stay visible), the selected row as where
+/// the remote starts, the async selection guard, the scrolling list, and an
+/// optional footer.
 class SheetSelectionColumn extends StatefulWidget {
   /// Header text, or null to omit the header entirely.
   final String? headerLabel;
@@ -46,16 +53,41 @@ class SheetSelectionColumn extends StatefulWidget {
 
 class _SheetSelectionColumnState extends State<SheetSelectionColumn> implements SheetSelectionColumnScope {
   final _initialScroll = InitialItemScrollController();
+  final _initialRowFocusNode = FocusNode(debugLabel: 'SheetSelectionInitialRow');
+  OverlaySheetController? _sheet;
+  bool _offeredInitialFocus = false;
   bool _selectionPending = false;
+
+  /// The row the remote starts on: the selected one, else the first.
+  int get _initialRow {
+    final index = widget.initialIndex;
+    if (index == null || index < 0 || index >= widget.itemCount) return 0;
+    return index;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sheet = OverlaySheetController.maybeOf(context);
+    if (!_offeredInitialFocus && widget.itemCount > 0) {
+      _offeredInitialFocus = true;
+      _sheet?.offerInitialFocus(_initialRowFocusNode);
+    }
+  }
 
   @override
   void dispose() {
+    _sheet?.withdrawInitialFocus(_initialRowFocusNode);
+    _initialRowFocusNode.dispose();
     _initialScroll.dispose();
     super.dispose();
   }
 
   @override
   Key? keyFor(int index) => index == 0 ? _initialScroll.firstItemKey : null;
+
+  @override
+  FocusNode? focusNodeFor(int index) => index == _initialRow ? _initialRowFocusNode : null;
 
   @override
   void runExclusive(Future<void> Function() action) => unawaited(_select(action));
@@ -73,7 +105,7 @@ class _SheetSelectionColumnState extends State<SheetSelectionColumn> implements 
 
   @override
   Widget build(BuildContext context) {
-    _initialScroll.maybeScrollTo(widget.initialIndex);
+    _initialScroll.maybeReveal(widget.initialIndex);
 
     return Column(
       mainAxisSize: .min,

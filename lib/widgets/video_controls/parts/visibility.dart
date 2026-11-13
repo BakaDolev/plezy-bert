@@ -219,12 +219,21 @@ extension _PlexVideoControlsVisibilityMethods on _PlexVideoControlsState {
   }
 
   /// Show controls and optionally focus play/pause on keyboard input (desktop only)
+  ///
+  /// While an intro or credits marker is running, focus goes to its Skip button
+  /// instead: the prompt fades after a few seconds, and the press that brings
+  /// the chrome back is usually a late "skip". Down from Skip still reaches
+  /// Play/Pause in one press.
   void _showControlsWithFocus({bool requestFocus = true}) {
     widget.chromeController.show();
 
     if (requestFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        if (_isSkipMarkerButtonVisible && _skipMarkerFocusNode.context != null) {
+          _skipMarkerFocusNode.requestFocus();
+          return;
+        }
         _desktopControlsKey.currentState?.requestPlayPauseFocus();
       });
     } else {

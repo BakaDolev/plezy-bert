@@ -63,7 +63,8 @@ void main() {
   });
 
   test("the version line is the fork's own version, never the build number or commit", () {
-    expect(forkVersionText(version: '0.0.3'), '0.0.3 (beta)');
+    expect(forkVersionText(version: '0.0.3'), '0.0.3');
+    expect(forkVersionText(version: '0.0.3', beta: true), '0.0.3 (beta)');
     expect(forkVersionText(version: '1.1.0'), '1.1.0');
     // No --dart-define in `flutter test`: a local build has no version of its own.
     expect(forkVersionText(), 'dev build');

@@ -11,19 +11,22 @@ const String kForkName = 'Voice-control fork';
 const String kForkUpstreamBase = '2.25.0';
 
 /// This build's own version, `x.y.z`, injected at build time via
-/// `--dart-define=FORK_VERSION`; empty in local/dev builds. Every beta bumps z;
-/// a release bumps y (or x for a big change) and starts z again at 0. The
-/// build number updates compare stays out of sight, and so does the commit
-/// (the log has both).
+/// `--dart-define=FORK_VERSION`; empty in local/dev builds. Since 2026-11-05
+/// every published version is a full release: x for big things or a move onto
+/// a new Plezy, y for a good new feature, z for bug fixes. The build number
+/// updates compare stays out of sight, and so does the commit (the log has both).
 const String kForkVersion = String.fromEnvironment('FORK_VERSION');
 
-/// A fork version as people see it: "0.0.2 (beta)" (a last number above 0 is
-/// a beta) or "1.1.0" (a release). Anything that is not `x.y.z` is shown as it is.
-String forkVersionLabel(String version) {
+/// True only in a build made as a beta (`--dart-define=FORK_BETA=true`). No
+/// published build is one since 2026-11-05; the release tool keeps the option.
+const bool kForkBeta = bool.fromEnvironment('FORK_BETA');
+
+/// A fork version as people see it: "2.0.1", or "0.0.2 (beta)" for a build made
+/// as a beta ([beta]); the number alone never makes one. Anything that is not
+/// `x.y.z` is shown as it is.
+String forkVersionLabel(String version, {bool beta = false}) {
   final text = version.trim();
-  final match = RegExp(r'^\d+\.\d+\.(\d+)$').firstMatch(text);
-  if (match == null) return text;
-  return int.parse(match.group(1)!) > 0 ? '$text (beta)' : text;
+  return beta && RegExp(r'^\d+\.\d+\.\d+$').hasMatch(text) ? '$text (beta)' : text;
 }
 
 /// The marker line shown under the version, e.g.
@@ -31,8 +34,8 @@ String forkVersionLabel(String version) {
 String forkMarkerLabel() => '$kForkName · based on Plezy $kForkUpstreamBase';
 
 /// The footer for the changelog screen, e.g.
-/// "Plezy Fork 0.0.2 (beta) · on Plezy 2.23.0" (the version dropped when unknown).
-String forkBuildFooter({String version = kForkVersion}) {
-  final fork = version.isNotEmpty ? 'Plezy Fork ${forkVersionLabel(version)} · ' : '';
+/// "Plezy Fork 2.0.0 · on Plezy 2.25.0" (the version dropped when unknown).
+String forkBuildFooter({String version = kForkVersion, bool beta = kForkBeta}) {
+  final fork = version.isNotEmpty ? 'Plezy Fork ${forkVersionLabel(version, beta: beta)} · ' : '';
   return '${fork}on Plezy $kForkUpstreamBase';
 }

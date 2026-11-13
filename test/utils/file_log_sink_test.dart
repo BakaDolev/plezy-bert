@@ -81,11 +81,56 @@ void main() {
 
       final file = sessionFile(tempRoot, 'plezy-session.log');
       expect(file.readAsStringSync(), contains('durable line'));
-      // The reported LENGTH must be live too, not just the content: Windows
-      // leaves the directory entry at 0 for an open handle unless it is
-      // flushed, which makes the file look empty in Explorer all session.
-      expect(file.lengthSync(), greaterThan(0));
       await sink.close();
+    });
+
+    test('the reported length goes live within the flush interval', () async {
+      // Windows leaves the directory entry at 0 for an open handle until it is
+      // flushed, which makes the file look empty in Explorer all session.
+      final sink = FileLogSink(flushInterval: const Duration(milliseconds: 50));
+      await sink.start(tempRoot, fileName: 'plezy-session.log');
+
+      sink.writeLine('sized line');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(sessionFile(tempRoot, 'plezy-session.log').lengthSync(), greaterThan(0));
+      await sink.close();
+    });
+
+    test('a burst of lines costs one disk flush, not one per line', () async {
+      // A damaged file makes mpv log hundreds of lines a second. A flush per
+      // line cost ~3.4 ms each on Windows and froze the player (Trello #97).
+      final sink = FileLogSink(flushInterval: const Duration(milliseconds: 50));
+      await sink.start(tempRoot, fileName: 'plezy-session.log');
+      final before = sink.flushCount;
+
+      final stopwatch = Stopwatch()..start();
+      for (var i = 0; i < 500; i++) {
+        sink.writeLine('flood line $i');
+      }
+      stopwatch.stop();
+      expect(sink.flushCount - before, 0, reason: 'writeLine must not flush inline');
+      // ~1.7 s with a flush per line on the dev PC, a few ms without.
+      expect(stopwatch.elapsedMilliseconds, lessThan(500), reason: 'writeLine must stay cheap');
+
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(sink.flushCount - before, 1, reason: 'one timed flush covers the whole burst');
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(sink.flushCount - before, 1, reason: 'nothing new written, nothing to flush');
+      await sink.close();
+    });
+
+    test('close flushes pending lines and later writes stay harmless', () async {
+      final sink = FileLogSink(flushInterval: const Duration(hours: 1));
+      await sink.start(tempRoot, fileName: 'plezy-session.log');
+      sink.writeLine('last words');
+      await sink.close();
+
+      final file = sessionFile(tempRoot, 'plezy-session.log');
+      expect(file.readAsStringSync(), contains('last words'));
+      expect(file.lengthSync(), greaterThan(0));
+      expect(() => sink.writeLine('after close'), returnsNormally);
     });
 
     test('writes the header first when one is given', () async {

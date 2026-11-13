@@ -191,6 +191,30 @@ void scrollToCurrentItem(
   });
 }
 
+/// Jump a vertical [ListView] only as far as needed for [currentIndex] to be
+/// fully visible, so the rows above it stay in view whenever they fit.
+///
+/// Same measuring as [scrollToCurrentItem]; the difference is where the row
+/// lands: at the bottom edge when the list has to move, rather than the top.
+void revealCurrentItem(
+  ScrollController controller,
+  GlobalKey firstItemKey,
+  int currentIndex, {
+  bool Function()? isCurrent,
+}) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (isCurrent?.call() == false || !controller.hasClients) return;
+    final itemHeight = (firstItemKey.currentContext?.findRenderObject() as RenderBox?)?.size.height;
+    if (itemHeight == null) return;
+    final position = controller.position;
+    final maxExtent = position.maxScrollExtent;
+    final viewport = position.viewportDimension;
+    if (!maxExtent.isFinite || !viewport.isFinite) return;
+    final target = ((currentIndex + 1) * itemHeight - viewport).clamp(0.0, maxExtent);
+    if (target > position.pixels) controller.jumpTo(target);
+  });
+}
+
 /// Owns the boilerplate for one-time initial scrolling in selectable lists.
 class InitialItemScrollController {
   final GlobalKey firstItemKey = GlobalKey();
@@ -201,6 +225,13 @@ class InitialItemScrollController {
     if (_didInitialScroll || selectedIndex == null || selectedIndex <= 0) return;
     _didInitialScroll = true;
     scrollToCurrentItem(controller, firstItemKey, selectedIndex);
+  }
+
+  /// Like [maybeScrollTo], but moves only as far as [revealCurrentItem] needs.
+  void maybeReveal(int? selectedIndex) {
+    if (_didInitialScroll || selectedIndex == null || selectedIndex <= 0) return;
+    _didInitialScroll = true;
+    revealCurrentItem(controller, firstItemKey, selectedIndex);
   }
 
   void dispose() => controller.dispose();

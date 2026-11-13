@@ -122,6 +122,7 @@ import 'video_player/live_timeline_report.dart';
 import 'video_player/wakelock_controller.dart';
 import 'video_player/playback_failure_action.dart';
 import 'video_player/playback_transition_gate.dart';
+import 'video_player/audio_timestamp_resync.dart';
 import 'video_player/open_http_503_watchdog.dart';
 import 'video_player/open_failure_log.dart';
 import 'video_player/live_tv_session_args.dart';
@@ -1273,6 +1274,7 @@ class VideoPlayerScreenState extends State<VideoPlayerScreen>
     _playbackAttempt?.outcome.abort(reason);
     unawaited(_trackManager?.invalidatePendingSelection());
     _http503Watchdog.disarm();
+    _audioTimestampResync.cancel();
   }
 
   Future<void> _playWithPlaybackIntent(Player currentPlayer) {
@@ -2885,6 +2887,12 @@ class VideoPlayerScreenState extends State<VideoPlayerScreen>
   /// otherwise never raises an error (#1830). Armed from [_onPlayerLog],
   /// disarmed on first frame, on every new-open reset, and in [dispose].
   late final OpenHttp503Watchdog _http503Watchdog = OpenHttp503Watchdog(onPersistent: _onOpenHttp503Persistent);
+
+  /// Re-syncs picture and sound after a damaged file's audio timestamps jump.
+  /// Fed from [_onPlayerLog]; cancelled with the open in [_abortCurrentOpen].
+  late final AudioTimestampResync _audioTimestampResync = AudioTimestampResync(
+    onResync: _resyncAfterAudioTimestampReset,
+  );
 
   // OS Media Controls Integration
 

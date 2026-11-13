@@ -15,6 +15,13 @@ static HWND g_mainHwnd = nullptr;
 // native fullscreen toggle is in flux so we don't record the fullscreen rect
 // as the user's last "normal" placement.
 static bool g_suppressPlacementSave = false;
+// When true, WM_DPICHANGED must not resize the window. Set while the saved
+// placement is applied at startup: the window is created on the primary
+// monitor, and moving it to a saved rect on a monitor with another scale makes
+// Windows suggest that rect rescaled by the DPI ratio. The saved rect is
+// already in the target monitor's pixels, so applying the suggestion would
+// shrink (or grow) the window by that ratio on every launch.
+static bool g_restoringPlacement = false;
 
 static void SaveWindowPlacement(HWND hwnd);
 
@@ -123,7 +130,9 @@ static bool LoadWindowPlacement(HWND hwnd) {
     // Apply hidden. A visible showCmd here would display a blank window at
     // the restored spot before Flutter has rendered anything.
     wp.showCmd = SW_HIDE;
+    g_restoringPlacement = true;
     SetWindowPlacement(hwnd, &wp);
+    g_restoringPlacement = false;
   }
 
   RegCloseKey(hKey);
@@ -220,6 +229,10 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message, WPARAM const wparam
     case WM_DISPLAYCHANGE:
       // One bounded, serialized retry for a display that may have reconnected.
       mpv::DisplayModeManager::RecoverIfNeeded();
+      break;
+    case WM_DPICHANGED:
+      // Keep the restored size; see g_restoringPlacement.
+      if (g_restoringPlacement) return 0;
       break;
     case WM_FONTCHANGE:
       if (flutter_controller_) {

@@ -235,6 +235,12 @@ extension _VideoPlayerErrorMethods on VideoPlayerScreenState {
       _transportFaultSeen = true;
       _noteBackgroundTransportFault();
     }
+    // A damaged file's audio timestamps jump; mpv resets audio and picture and
+    // sound stay apart afterwards. Re-seek once the burst is over. Live TV
+    // stays out: its streams reset timestamps without being damaged.
+    if (!widget.isLive && _firstFrame.rendered && isAudioTimestampResetLog(log)) {
+      _audioTimestampResync.onReset();
+    }
     // A stream mpv gives up on at open (`error_on_track`) ends the file only
     // when the other stream is gone too; otherwise the load lives on with no
     // end-file and the viewer waits out the open deadline for an error mpv
@@ -246,6 +252,17 @@ extension _VideoPlayerErrorMethods on VideoPlayerScreenState {
     if (cause == null) return;
     appLogger.w('mpv gave up on a stream while opening — giving up on this open');
     _onPlayerError(PlayerError(log.text.trim(), cause: cause));
+  }
+
+  /// The audio timestamp resets of a damaged stretch have stopped: a seek to
+  /// where playback is puts picture and sound back together, which is what
+  /// the viewer otherwise had to do by hand.
+  void _resyncAfterAudioTimestampReset() {
+    final currentPlayer = player;
+    if (!mounted || _shuttingDown || currentPlayer == null || widget.isLive) return;
+    final position = currentPlayer.state.position;
+    appLogger.i('Re-syncing picture and sound at ${position.inMilliseconds} ms after the audio timestamps jumped');
+    unawaited(_performSeekPlayback(position));
   }
 
   /// The open-phase 503 watchdog's deadline passed with no first frame: the

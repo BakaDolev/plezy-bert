@@ -273,6 +273,8 @@ void main() {
       RemoteCommandType.setSecondarySubtitleTrack: 52,
       RemoteCommandType.setZoom: 53,
       RemoteCommandType.setFullscreen: 54,
+      RemoteCommandType.switchProfile: 55,
+      RemoteCommandType.switchProfileResult: 56,
     };
     expected.forEach((type, index) => expect(type.index, index, reason: type.name));
   });

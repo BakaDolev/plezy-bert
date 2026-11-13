@@ -172,6 +172,7 @@ class _SourceAudioColumn extends StatelessWidget {
         return TrackSelectionHelper.buildTrackTile(
           context: context,
           key: scope.keyFor(index),
+          focusNode: scope.focusNodeFor(index),
           label: track.label,
           isSelected: track.id == selectedId,
           onTap: () => scope.runExclusive(() => onSelected(track.id)),
@@ -234,6 +235,7 @@ class _SourceSubtitleColumn extends StatelessWidget {
           return TrackSelectionHelper.buildOffTile(
             context: context,
             key: scope.keyFor(index),
+            focusNode: scope.focusNodeFor(index),
             isSelected: selectedChoice.isOff,
             onTap: () => scope.runExclusive(
               () => trackControlsState.onSwitchSubtitle!(const PlaybackSourceSubtitleChoice.off()),
@@ -244,6 +246,7 @@ class _SourceSubtitleColumn extends StatelessWidget {
         final track = tracks[index - 1];
         return TrackSelectionHelper.buildTrackTile(
           context: context,
+          focusNode: scope.focusNodeFor(index),
           label: track.labelForIndex(index - 1),
           isSelected: track.id == selectedId,
           onTap: () => scope.runExclusive(
@@ -311,6 +314,7 @@ class _AudioColumn extends StatelessWidget {
         return TrackSelectionHelper.buildTrackTile(
           context: context,
           key: scope.keyFor(index),
+          focusNode: scope.focusNodeFor(index),
           label: label,
           isSelected: track.id == selectedId,
           onTap: () {
@@ -385,6 +389,7 @@ class _SubtitleColumn extends StatelessWidget {
           return TrackSelectionHelper.buildOffTile(
             context: context,
             key: scope.keyFor(index),
+            focusNode: scope.focusNodeFor(index),
             isSelected: isOffSelected,
             onTap: () {
               // Turning off primary also clears secondary
@@ -417,6 +422,7 @@ class _SubtitleColumn extends StatelessWidget {
           final sourceTrack = unloadedSourceSidecars[sourceIndex];
           return TrackSelectionHelper.buildTrackTile(
             context: context,
+            focusNode: scope.focusNodeFor(index),
             label: sourceTrack.labelForIndex(trackIndex),
             isSelected: false,
             onTap: () => scope.runExclusive(
@@ -447,6 +453,7 @@ class _SubtitleColumn extends StatelessWidget {
 
         return TrackSelectionHelper.buildTrackTile(
           context: context,
+          focusNode: scope.focusNodeFor(index),
           label: label,
           isSelected: isPrimary,
           badge: badge,

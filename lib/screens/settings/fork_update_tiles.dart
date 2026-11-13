@@ -14,10 +14,11 @@ import '../../widgets/focusable_list_tile.dart';
 import '../../widgets/setting_tile.dart';
 import '../../widgets/settings_section.dart';
 
-/// "0.0.2 (beta)": the fork's own version ([kForkVersion]), or "dev build" for
-/// a local build without one. The build number updates compare and the commit
-/// stay in the log.
-String forkVersionText({String version = kForkVersion}) => version.isEmpty ? 'dev build' : forkVersionLabel(version);
+/// "2.0.0": the fork's own version ([kForkVersion]), "(beta)" added only for a
+/// build made as one ([kForkBeta]), or "dev build" for a local build without a
+/// version. The build number updates compare and the commit stay in the log.
+String forkVersionText({String version = kForkVersion, bool beta = kForkBeta}) =>
+    version.isEmpty ? 'dev build' : forkVersionLabel(version, beta: beta);
 
 /// What the About button says when no update dialog opens.
 @visibleForTesting

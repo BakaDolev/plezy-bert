@@ -18,7 +18,7 @@ tracks and volume, so a controller can confirm a command landed. [The full list]
 
 **Updates itself.** When Plezy opens (or from About > Check for updates) it offers the next build in its own window:
 Install, Later or Skip. Never while something plays. Every update is signature-checked before it installs. Turn on
-About > Beta updates to get new builds first.
+About > Beta updates to get each new version first, before it is released to everyone.
 
 **Windows.** An installer that puts Plezy Fork beside the official Plezy, and can remove the official one for you
 (your settings stay, and a copy is saved first). A [silent installer](#the-silent-installer) for unattended machines.
@@ -45,8 +45,8 @@ on from the newer spot.
 - **On Android, uninstall the official Plezy first** if it is there: Android doesn't install an app signed by someone
   else over it. You sign in again once. An older Plezy Fork updates in place, settings and sign-in kept.
 
-After that, updates arrive in the app. On Android, allow Plezy to install apps once, the first time it updates. Betas
-come only with About > Beta updates turned on.
+After that, updates arrive in the app. On Android, allow Plezy to install apps once, the first time it updates. With
+About > Beta updates on, a new version arrives as soon as it is published; otherwise once it is released to everyone.
 
 ## Releases
 
@@ -61,9 +61,11 @@ Each release carries these files (`<version>` is this fork's own version, for ex
 | `appcast.xml`, `android.json` | What the app reads to find its own updates. |
 | `checksums-<version>.txt` | The SHA-256 of every file above, in `sha256sum` format (`sha256sum -c --ignore-missing` checks a download). In 0.0.1 it is `PlezyFork-0.0.1-SHA256SUMS.txt`. |
 
-Tags are `v<x.y.z>`. A version whose last number is above 0 (`0.0.2`) is a beta and is marked as a pre-release;
-`x.y.0` is a release. Betas and releases are builds of the same app and install over each other. To follow the betas,
-take the highest `vX.Y.Z` tag across all releases, pre-releases included.
+Tags are `v<x.y.z>`. Since 2.0.0 every version is a full release: the first number goes up for big changes or a move
+onto a new Plezy, the second for a new feature, the last for bug fixes. A new version is a pre-release at first (devices
+with About > Beta updates on take it), then becomes the latest release for everyone. Before 2.0.0, a version whose last
+number was above 0 (`0.0.2`, `1.0.3`) was a beta. Every version is a build of the same app and installs over the others.
+To follow the newest, take the highest `vX.Y.Z` tag across all releases, pre-releases included.
 
 ### The silent installer
 

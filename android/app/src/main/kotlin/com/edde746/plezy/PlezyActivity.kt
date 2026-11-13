@@ -132,6 +132,12 @@ class PlezyActivity : FlutterActivity() {
   private var flutterTextureView: FlutterTextureView? = null
   private var flutterSurfaceReconnectPending = false
   private var activityStarted = false
+
+  // Phones release Flutter's onscreen surface while the activity is stopped (screen off, app
+  // in the background, audio still playing). A stopped activity draws nothing, yet the texture
+  // view's screen-sized buffers and the renderer's attachments stayed allocated: ~500 MB of
+  // graphics memory on a 3120x1440 phone for the whole screen-off session.
+  private var flutterSurfaceReleasedWhileStopped = false
   private val externalPlayerChannel = ExternalPlayerChannel(this)
   private val userCertificateChannel = UserCertificateChannel()
   private val appIconChannel = AppIconChannel(this)
@@ -647,6 +653,7 @@ class PlezyActivity : FlutterActivity() {
     assistiveTechnologyChannel = null
     activityStarted = false
     flutterSurfaceReconnectPending = false
+    flutterSurfaceReleasedWhileStopped = false
     flutterTextureView = null
     super.onDestroy()
   }
@@ -756,7 +763,7 @@ class PlezyActivity : FlutterActivity() {
 
   override fun onStop() {
     activityStarted = false
-    if (isAndroidTvDevice()) flutterSurfaceReconnectPending = true
+    if (isAndroidTvDevice()) flutterSurfaceReconnectPending = true else releaseFlutterSurfaceWhileStopped()
     appIconChannel.onStop()
     maybeNotifyPipClosed()
     super.onStop()
@@ -766,7 +773,34 @@ class PlezyActivity : FlutterActivity() {
     super.onStart()
     activityStarted = true
     appIconChannel.onStart()
+    restoreFlutterSurfaceAfterStop()
     tryReconnectFlutterSurface()
+  }
+
+  private fun releaseFlutterSurfaceWhileStopped() {
+    val textureView = flutterTextureView ?: return
+    if (flutterSurfaceReleasedWhileStopped) return
+    textureView.pause()
+    flutterSurfaceReleasedWhileStopped = true
+    Log.i(TAG, "Released Flutter texture surface while stopped")
+  }
+
+  // resume() hands the engine a new Surface for the same SurfaceTexture and schedules a frame,
+  // the second half of swapFlutterSurface. Posted so the view has its window back first.
+  private fun restoreFlutterSurfaceAfterStop() {
+    if (!flutterSurfaceReleasedWhileStopped) return
+    val textureView = flutterTextureView ?: run {
+      flutterSurfaceReleasedWhileStopped = false
+      return
+    }
+    textureView.post {
+      if (!activityStarted || !flutterSurfaceReleasedWhileStopped || textureView !== flutterTextureView) {
+        return@post
+      }
+      textureView.resume()
+      flutterSurfaceReleasedWhileStopped = false
+      Log.i(TAG, "Restored Flutter texture surface after stop")
+    }
   }
 
   /**
